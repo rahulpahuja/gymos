@@ -75,8 +75,10 @@ export const TraineePortal: React.FC<TraineePortalProps> = ({
         <AlertCircle className="w-8 h-8 text-amber-500 mx-auto mb-3" />
         <h2 className="text-base font-bold text-gray-900 dark:text-white">Member record not linked</h2>
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-          Your login is approved but not yet linked to a member profile. Ask the front desk or your
-          branch manager to link your account from Staff &amp; Approvals.
+          Your login is approved but not yet linked to a member profile. Ask your branch manager to
+          open <span className="font-semibold">Staff &amp; Approvals → Edit</span> and set your Linked
+          Member Record — or add a member whose email is{' '}
+          <span className="font-semibold">{currentUser.email}</span>.
         </p>
       </div>
     );

@@ -33,8 +33,13 @@ const COLLECTIONS = [
   { firestore: 'audit_logs', localKey: 'gymos_audit_logs_v1', getLocal: () => storageService.getAuditLogs() },
 ];
 
+type SyncCollection = { firestore: string; localKey: string; getLocal: () => any[] };
+
 class FirestoreSyncService {
   private unsubscribes: Unsubscribe[] = [];
+  private storageUnsubs: Array<() => void> = [];
+  private pushTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private remoteIds: Map<string, Set<string>> = new Map();
   private isInitialized = false;
   private isSyncingFromRemote = false;
 
@@ -47,28 +52,28 @@ class FirestoreSyncService {
       // First check if any collection is empty, and seed Firestore if needed
       await this.seedEmptyCollections();
 
-      // Start real-time onSnapshot listeners for each collection
+      // Start real-time onSnapshot listeners for each collection (remote -> local)
       for (const col of COLLECTIONS) {
         const colRef = collection(db, col.firestore);
         const unsub = onSnapshot(
           colRef,
           (snapshot) => {
-            if (snapshot.empty && !this.isSyncingFromRemote) {
-              return;
-            }
-
             const items: any[] = [];
             snapshot.forEach((docSnap) => {
               items.push({ ...docSnap.data(), id: docSnap.id });
             });
+            this.remoteIds.set(col.firestore, new Set(items.map((i) => String(i.id))));
 
-            if (items.length > 0) {
-              this.isSyncingFromRemote = true;
-              localStorage.setItem(col.localKey, JSON.stringify(items));
-              storageService.notify(col.localKey);
-              storageService.notify('*');
-              this.isSyncingFromRemote = false;
+            if (snapshot.empty) {
+              // Don't wipe the local seed just because the remote collection is empty
+              return;
             }
+
+            this.isSyncingFromRemote = true;
+            localStorage.setItem(col.localKey, JSON.stringify(items));
+            storageService.notify(col.localKey);
+            storageService.notify('*');
+            this.isSyncingFromRemote = false;
           },
           (error) => {
             console.warn(`[FirestoreSync] Subscription warning on ${col.firestore}:`, error);
@@ -76,9 +81,60 @@ class FirestoreSyncService {
         );
         this.unsubscribes.push(unsub);
       }
-      console.log('[FirestoreSync] Realtime sync active across all gym collections');
+
+      // Push local writes back to Firestore (local -> remote)
+      for (const col of COLLECTIONS) {
+        const unsub = storageService.subscribe(col.localKey, () => {
+          if (this.isSyncingFromRemote) return;
+          this.schedulePush(col);
+        });
+        this.storageUnsubs.push(unsub);
+      }
+
+      console.log('[FirestoreSync] Realtime bidirectional sync active across all gym collections');
     } catch (error) {
       console.warn('[FirestoreSync] Failed to initialize Firestore real-time sync, local mode fallback active:', error);
+    }
+  }
+
+  // Debounce rapid successive writes to the same collection into one push
+  private schedulePush(col: SyncCollection): void {
+    const existing = this.pushTimers.get(col.firestore);
+    if (existing) clearTimeout(existing);
+    this.pushTimers.set(
+      col.firestore,
+      setTimeout(() => {
+        this.pushTimers.delete(col.firestore);
+        void this.pushCollection(col);
+      }, 400)
+    );
+  }
+
+  // Upsert every local record and delete remote records that were removed locally
+  private async pushCollection(col: SyncCollection): Promise<void> {
+    try {
+      const local = (col.getLocal() || []).filter((it) => it && it.id);
+      const localIds = new Set<string>(local.map((it) => String(it.id)));
+
+      const batch = writeBatch(db);
+      let ops = 0;
+      for (const item of local.slice(0, 450)) {
+        batch.set(doc(db, col.firestore, String(item.id)), item, { merge: true });
+        ops += 1;
+      }
+      const known = this.remoteIds.get(col.firestore);
+      if (known) {
+        for (const id of known) {
+          if (!localIds.has(id)) {
+            batch.delete(doc(db, col.firestore, id));
+            ops += 1;
+          }
+        }
+      }
+      if (ops > 0) await batch.commit();
+      this.remoteIds.set(col.firestore, localIds);
+    } catch (error) {
+      console.warn(`[FirestoreSync] Push to ${col.firestore} failed:`, error);
     }
   }
 
@@ -94,8 +150,8 @@ class FirestoreSyncService {
           if (localData && localData.length > 0) {
             console.log(`[FirestoreSync] Seeding ${col.firestore} with ${localData.length} records...`);
             const batch = writeBatch(db);
-            // Limit batch size to 25 items to stay well below 500 limit
-            const toSeed = localData.slice(0, 25);
+            // Stay under the 500-op batch limit
+            const toSeed = localData.slice(0, 450);
             for (const item of toSeed) {
               if (item.id) {
                 const docRef = doc(db, col.firestore, item.id);
@@ -135,6 +191,11 @@ class FirestoreSyncService {
   public stop(): void {
     this.unsubscribes.forEach((unsub) => unsub());
     this.unsubscribes = [];
+    this.storageUnsubs.forEach((unsub) => unsub());
+    this.storageUnsubs = [];
+    this.pushTimers.forEach((t) => clearTimeout(t));
+    this.pushTimers.clear();
+    this.remoteIds.clear();
     this.isInitialized = false;
   }
 }

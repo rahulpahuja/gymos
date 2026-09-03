@@ -69,6 +69,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [editRole, setEditRole] = useState<UserRole>('manager');
   const [editBranchId, setEditBranchId] = useState('all');
+  const [editLinkId, setEditLinkId] = useState('');
 
   // Rejection modal
   const [rejectingUser, setRejectingUser] = useState<UserAccount | null>(null);
@@ -161,8 +162,14 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
   const handleSaveEdit = async () => {
     if (!editingUser) return;
+    const links =
+      editRole === 'trainer'
+        ? { linkedTrainerId: editLinkId }
+        : editRole === 'trainee'
+        ? { linkedTraineeId: editLinkId }
+        : undefined;
     try {
-      await firebaseAuthService.updateUserAccess(editingUser.id, editRole, editBranchId);
+      await firebaseAuthService.updateUserAccess(editingUser.id, editRole, editBranchId, links);
       showToast(`Updated access for ${editingUser.displayName || editingUser.email}`);
       setEditingUser(null);
     } catch (err) {
@@ -690,9 +697,10 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                             setEditingUser(u);
                             setEditRole(u.role);
                             setEditBranchId(u.branchId);
+                            setEditLinkId(u.linkedTrainerId || u.linkedTraineeId || '');
                           }}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                          title="Modify user role & branch"
+                          title="Modify user role, branch & linked record"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -850,6 +858,29 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   ))}
                 </select>
               </div>
+
+              {(editRole === 'trainer' || editRole === 'trainee') && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Linked {editRole === 'trainer' ? 'Trainer' : 'Member'} Record
+                  </label>
+                  <select
+                    value={editLinkId}
+                    onChange={(e) => setEditLinkId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 outline-none cursor-pointer"
+                  >
+                    <option value="">— Not linked —</option>
+                    {(editRole === 'trainer' ? trainers : trainees).map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName} · {p.email}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Their portal shows this record's sessions, payments, dues and attendance.
+                  </p>
+                </div>
+              )}
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                 <button

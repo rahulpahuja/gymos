@@ -76,7 +76,9 @@ export const TrainerPortal: React.FC<TrainerPortalProps> = ({
         <h2 className="text-base font-bold text-gray-900 dark:text-white">Trainer record not linked</h2>
         <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
           Your login is approved but not yet linked to a trainer profile. Ask your branch manager to
-          link your account from Staff &amp; Approvals.
+          open <span className="font-semibold">Staff &amp; Approvals → Edit</span> and set your Linked
+          Trainer Record — or add a trainer whose email is{' '}
+          <span className="font-semibold">{currentUser.email}</span>.
         </p>
       </div>
     );

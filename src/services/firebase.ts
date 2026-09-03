@@ -321,12 +321,19 @@ export const firebaseAuthService = {
     });
   },
 
-  // Update role or branch of an approved user
-  async updateUserAccess(userId: string, role: UserRole, branchId: string): Promise<void> {
+  // Update role, branch, and portal record linkage of an approved user
+  async updateUserAccess(
+    userId: string,
+    role: UserRole,
+    branchId: string,
+    links?: { linkedTrainerId?: string; linkedTraineeId?: string }
+  ): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       role,
       branchId,
+      linkedTrainerId: role === 'trainer' ? links?.linkedTrainerId || '' : '',
+      linkedTraineeId: role === 'trainee' ? links?.linkedTraineeId || '' : '',
     });
   },
 
