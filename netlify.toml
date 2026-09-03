@@ -2,10 +2,7 @@
 # https://docs.netlify.com/configure-builds/file-based-configuration/
 
 [build]
-  # firebase-applet-config.json is git-ignored (contains project credentials).
-  # Fall back to the checked-in example so CI/preview builds still succeed;
-  # a real deploy should provide the genuine file or Netlify build env values.
-  command = "cp -n firebase-applet-config.example.json firebase-applet-config.json || true; npm run build"
+  command = "npm run build"
   publish = "dist"
 
 [build.environment]

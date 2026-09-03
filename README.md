@@ -38,8 +38,9 @@ Recharts · lucide-react.
 
 1. Install dependencies:
    `npm install`
-2. Copy `firebase-applet-config.example.json` to `firebase-applet-config.json`
-   and fill in your Firebase project credentials (this file is git-ignored).
+2. `firebase-applet-config.json` (client Firebase web config) is committed and
+   used as-is. To target a different Firebase project, edit that file — use
+   `firebase-applet-config.example.json` as the shape reference.
 3. Optionally set `GEMINI_API_KEY` in `.env.local` for Gemini API calls.
 4. Start the dev server:
    `npm run dev`
@@ -48,9 +49,8 @@ Recharts · lucide-react.
 
 - Production build: `npm run build` (output in `dist/`)
 - Type-check: `npm run lint`
-- Netlify: `netlify.toml` is included — connect the repo and deploy. Provide the
-  real `firebase-applet-config.json` (or Netlify build environment values); the
-  build falls back to the example config so preview builds still succeed.
+- Netlify: `netlify.toml` is included — connect the repo and deploy. The Firebase
+  web config is committed, so no extra build configuration is required.
 
 ## License
 

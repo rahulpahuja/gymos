@@ -15,7 +15,9 @@ pnpm-lock.yaml
 !.env.example
 
 # Secrets & credentials
-firebase-applet-config.json
+# NOTE: firebase-applet-config.json holds only the client Firebase web config
+# (API key, project/app IDs). These are not secrets - they ship in the browser
+# bundle and are gated by Firestore rules + Auth settings - so it IS committed.
 .firebaserc
 *.pem
 *.key
