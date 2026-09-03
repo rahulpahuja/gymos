@@ -70,8 +70,8 @@ async function testFirestoreConnection() {
 }
 testFirestoreConnection();
 
-// Initial Super Admin email
-const SUPER_ADMIN_EMAILS = ['rahulpahuja2015@gmail.com'];
+// Initial Super Admin emails (auto-approved as admin on first sign-in)
+const SUPER_ADMIN_EMAILS = ['rahulpahuja2015@gmail.com', 'therahulpahuja@gmail.com'];
 
 export const firebaseAuthService = {
   // Sign In With Google

@@ -12,9 +12,9 @@ service cloud.firestore {
     }
 
     function isOwnerEmail() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         request.auth.token.email != null &&
-        (request.auth.token.email == 'rahulpahuja2015@gmail.com' || request.auth.token.email.lower() == 'rahulpahuja2015@gmail.com');
+        request.auth.token.email.lower() in ['rahulpahuja2015@gmail.com', 'therahulpahuja@gmail.com'];
     }
 
     // Check if user is approved admin
