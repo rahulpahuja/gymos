@@ -1,12 +1,12 @@
 {
-  "projectId": "quickrestaurentpos",
-  "appId": "1:193206462958:web:eb0eaae63014ca081786ff",
-  "apiKey": "AIzaSyAbno0rtubhLkjL2jZF2A7a-LUKSSBUON0",
-  "authDomain": "quickrestaurentpos.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-gymosgympersonal-d37232c1-786d-4a66-9ee0-e5d1505f0a62",
-  "storageBucket": "quickrestaurentpos.firebasestorage.app",
-  "messagingSenderId": "193206462958",
-  "measurementId": "",
-  "oAuthClientId": "193206462958-1oec66rupr7uil86bkm2bhrmogunk63k.apps.googleusercontent.com",
+  "projectId": "gymos-f3fa6",
+  "appId": "1:91424532561:web:7759852276b791475ef070",
+  "apiKey": "AIzaSyAd4jOSea5ebDsayQTEtvGUdJNocywV6Ng",
+  "authDomain": "gymos-f3fa6.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "gymos-f3fa6.firebasestorage.app",
+  "messagingSenderId": "91424532561",
+  "measurementId": "G-B30TZKV39X",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
