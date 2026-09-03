@@ -201,22 +201,36 @@ export const firebaseAuthService = {
         (snap) => {
           if (snap.exists()) {
             callback(snap.data() as UserAccount, false);
-          } else {
-            // Profile pending creation
-            const email = (firebaseUser.email || '').toLowerCase();
-            const isOwner = SUPER_ADMIN_EMAILS.includes(email);
-            const fallback: UserAccount = {
+            return;
+          }
+          // No profile doc: either it hasn't been written yet (brand-new
+          // sign-in) or an admin removed it (access revoked).
+          const email = (firebaseUser.email || '').toLowerCase();
+          const isOwner = SUPER_ADMIN_EMAILS.includes(email);
+          const meta = firebaseUser.metadata;
+          const brandNew =
+            !meta?.creationTime ||
+            !meta?.lastSignInTime ||
+            Math.abs(
+              new Date(meta.lastSignInTime).getTime() - new Date(meta.creationTime).getTime()
+            ) < 15000;
+          const revoked = !isOwner && !brandNew;
+          callback(
+            {
               id: firebaseUser.uid,
               email: firebaseUser.email || '',
               displayName: firebaseUser.displayName || 'Staff Member',
               photoURL: firebaseUser.photoURL || '',
               role: isOwner ? 'admin' : 'manager',
               branchId: isOwner ? 'all' : 'branch-1',
-              status: isOwner ? 'approved' : 'pending',
+              status: isOwner ? 'approved' : revoked ? 'rejected' : 'pending',
+              rejectionReason: revoked
+                ? 'Your access has been removed by an administrator.'
+                : undefined,
               createdAt: new Date().toISOString(),
-            };
-            callback(fallback, false);
-          }
+            },
+            false
+          );
         },
         (error) => {
           console.warn('[Firebase Auth] User doc subscription error, using token profile:', error);
@@ -337,7 +351,20 @@ export const firebaseAuthService = {
     });
   },
 
-  // Delete user record
+  // Revoke access (soft): keeps the profile so a re-login stays locked out
+  async revokeUser(userId: string, approverName: string): Promise<void> {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      status: 'rejected',
+      rejectionReason: 'Your access has been revoked by an administrator.',
+      linkedTrainerId: '',
+      linkedTraineeId: '',
+      approvedBy: approverName,
+      approvedAt: new Date().toISOString(),
+    });
+  },
+
+  // Permanently delete the user profile document
   async deleteUser(userId: string): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await deleteDoc(userRef);

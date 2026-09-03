@@ -178,11 +178,23 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     }
   };
 
-  const handleDelete = async (userId: string, email: string) => {
-    if (window.confirm(`Revoke access and delete account profile for ${email}?`)) {
+  const handleRevoke = async (userId: string, email: string) => {
+    if (window.confirm(`Revoke access for ${email}? They will be locked out immediately, even if they sign in again.`)) {
+      try {
+        await firebaseAuthService.revokeUser(userId, currentUser.name);
+        showToast(`Access revoked for ${email}`);
+      } catch (err) {
+        console.error('Revoke failed:', err);
+        showToast('Error revoking access');
+      }
+    }
+  };
+
+  const handlePurge = async (userId: string, email: string) => {
+    if (window.confirm(`Permanently delete the profile for ${email}? If they sign in again they will re-enter the approval queue as a new request.`)) {
       try {
         await firebaseAuthService.deleteUser(userId);
-        showToast(`User account deleted for ${email}`);
+        showToast(`Profile permanently deleted for ${email}`);
       } catch (err) {
         console.error('Delete failed:', err);
         showToast('Error deleting user');
@@ -705,11 +717,22 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
 
+                        {u.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            onClick={() => handleRevoke(u.id, u.email)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                            title="Revoke access (keeps them locked out on re-login)"
+                          >
+                            <UserX className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         <button
                           type="button"
-                          onClick={() => handleDelete(u.id, u.email)}
+                          onClick={() => handlePurge(u.id, u.email)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                          title="Revoke access & delete profile"
+                          title="Permanently delete profile"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
