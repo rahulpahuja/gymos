@@ -1,0 +1,171 @@
+src/components/dashboard/AdminDashboard.tsx:109:totalGeneralRevenue -> ₹{totalGeneralRevenue.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:125:totalPTRevenue -> ₹{totalPTRevenue.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:130:totalTrainerCommission -> Trainer: ₹{totalTrainerCommission.toLocaleString('en-IN')} | Gym: ₹{branchRetainedPT.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:130:branchRetainedPT -> Trainer: ₹{totalTrainerCommission.toLocaleString('en-IN')} | Gym: ₹{branchRetainedPT.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:141:totalOutstandingCommission -> ₹{totalOutstandingCommission.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:230:Number(val) -> formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
+src/components/dashboard/AdminDashboard.tsx:281:bGross -> ₹{bGross.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:332:tx.totalAmount -> <div className="font-bold text-gray-900">₹{tx.totalAmount.toLocaleString('en-IN')}</div>
+src/components/dashboard/AdminDashboard.tsx:334:tx.membershipAmount -> Mem: ₹{tx.membershipAmount.toLocaleString('en-IN')} | PT: ₹{tx.ptAmount.toLocaleString('en-IN')}
+src/components/dashboard/AdminDashboard.tsx:334:tx.ptAmount -> Mem: ₹{tx.membershipAmount.toLocaleString('en-IN')} | PT: ₹{tx.ptAmount.toLocaleString('en-IN')}
+src/components/dashboard/ManagerDashboard.tsx:101:branchMemRevenue -> ₹{branchMemRevenue.toLocaleString('en-IN')}
+src/components/dashboard/ManagerDashboard.tsx:109:branchPTRevenue -> ₹{branchPTRevenue.toLocaleString('en-IN')}
+src/components/expenses/ExpensesView.tsx:98:totalExpenseAmount -> Operating Expenses (₹{totalExpenseAmount.toLocaleString('en-IN')})
+src/components/expenses/ExpensesView.tsx:155:exp.amount -> ₹{exp.amount.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:162:totalCollected -> ₹{totalCollected.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:179:totalMembership -> ₹{totalMembership.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:192:totalPT -> ₹{totalPT.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:205:totalRefunded -> ₹{totalRefunded.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:209:totalTrainerClawback -> <span className="font-bold">₹{totalTrainerClawback.toLocaleString('en-IN')}</span>
+src/components/payments/PaymentLedgerView.tsx:311:tx.membershipAmount -> ₹{tx.membershipAmount.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:315:tx.ptAmount -> ₹{tx.ptAmount.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:319:tx.totalAmount -> ₹{tx.totalAmount.toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:325:tx.refundedAmount? -> Refunded (₹{tx.refundedAmount?.toLocaleString('en-IN') || tx.totalAmount})
+src/components/payments/PaymentLedgerView.tsx:419:0) -> -₹{(rf.trainerCommissionAdjustment || 0).toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:423:0) -> -₹{(rf.branchRevenueAdjustment || 0).toLocaleString('en-IN')}
+src/components/payments/PaymentLedgerView.tsx:427:rf.amount -> ₹{rf.amount.toLocaleString('en-IN')}
+src/components/payments/PaymentModal.tsx:114:t.totalDue -> {t.fullName} ({t.phone}) - Total Due: ₹{t.totalDue.toLocaleString('en-IN')}
+src/components/payments/PaymentModal.tsx:128:currentTrainee.membershipDue -> ₹{currentTrainee.membershipDue.toLocaleString('en-IN')}
+src/components/payments/PaymentModal.tsx:136:currentTrainee.ptDue -> ₹{currentTrainee.ptDue.toLocaleString('en-IN')}
+src/components/payments/PaymentModal.tsx:188:totalAmount -> ₹{totalAmount.toLocaleString('en-IN')}
+src/components/payments/PaymentModal.tsx:241:membershipAmount -> The system records <strong>₹{membershipAmount.toLocaleString('en-IN')}</strong> to General Membership Revenue and <strong>₹{ptAmount.toLocaleString('en-IN')}</strong> to PT Revenue with automatic trainer revenue-sharing split.
+src/components/payments/PaymentModal.tsx:241:ptAmount -> The system records <strong>₹{membershipAmount.toLocaleString('en-IN')}</strong> to General Membership Revenue and <strong>₹{ptAmount.toLocaleString('en-IN')}</strong> to PT Revenue with automatic trainer revenue-sharing split.
+src/components/payments/ReceiptModal.tsx:131:item.amount -> ₹{item.amount.toLocaleString('en-IN')}
+src/components/payments/ReceiptModal.tsx:142:receipt.currentPayment -> ₹{receipt.currentPayment.toLocaleString('en-IN')}
+src/components/payments/ReceiptModal.tsx:153:receipt.previousDue -> <div className="font-bold text-slate-800 mt-0.5">₹{receipt.previousDue.toLocaleString('en-IN')}</div>
+src/components/payments/ReceiptModal.tsx:157:receipt.currentPayment -> <div className="font-bold text-emerald-600 mt-0.5">₹{receipt.currentPayment.toLocaleString('en-IN')}</div>
+src/components/payments/ReceiptModal.tsx:161:receipt.remainingDue -> <div className="font-bold text-rose-600 mt-0.5">₹{receipt.remainingDue.toLocaleString('en-IN')}</div>
+src/components/payments/RefundModal.tsx:234:tx.totalAmount -> {tx.receiptNumber} — {tx.traineeName} (₹{tx.totalAmount.toLocaleString('en-IN')}) • {tx.paymentDate}
+src/components/payments/RefundModal.tsx:244:currentTx.totalAmount -> <span className="text-sm font-bold text-gray-900">₹{currentTx.totalAmount.toLocaleString('en-IN')}</span>
+src/components/payments/RefundModal.tsx:248:currentTx.membershipAmount -> <span className="text-sm font-bold text-blue-700">₹{currentTx.membershipAmount.toLocaleString('en-IN')}</span>
+src/components/payments/RefundModal.tsx:252:currentTx.ptAmount -> <span className="text-sm font-bold text-indigo-700">₹{currentTx.ptAmount.toLocaleString('en-IN')}</span>
+src/components/payments/RefundModal.tsx:381:calculation.trainerReduction -> -₹{calculation.trainerReduction.toLocaleString('en-IN')}
+src/components/payments/RefundModal.tsx:387:calculation.branchReduction -> -₹{calculation.branchReduction.toLocaleString('en-IN')}
+src/components/payments/RefundModal.tsx:436:refundAmount -> Authorize Refund (₹{refundAmount.toLocaleString('en-IN')})
+src/components/pt/PTCalculatorModal.tsx:296:splitResult.netPTRevenue -> ₹{splitResult.netPTRevenue.toLocaleString('en-IN')}
+src/components/pt/PTCalculatorModal.tsx:302:splitResult.trainerShare -> ₹{splitResult.trainerShare.toLocaleString('en-IN')}
+src/components/pt/PTCalculatorModal.tsx:308:splitResult.branchShare -> ₹{splitResult.branchShare.toLocaleString('en-IN')}
+src/components/pt/PTCalculatorModal.tsx:376:refundResult.trainerReduction -> <span>Trainer Commission Reduction: <strong className="text-rose-600">-₹{refundResult.trainerReduction.toLocaleString('en-IN')}</strong></span>
+src/components/pt/PTCalculatorModal.tsx:377:refundResult.branchReduction -> <span>Branch Reduction: <strong className="text-amber-600">-₹{refundResult.branchReduction.toLocaleString('en-IN')}</strong></span>
+src/components/pt/PTCalculatorModal.tsx:378:refundResult.newTrainerShare -> <span>Adjusted Trainer Commission: <strong className="text-emerald-700">₹{refundResult.newTrainerShare.toLocaleString('en-IN')}</strong></span>
+src/components/pt/PTCommissionSettlementModal.tsx:41:amount -> if (!window.confirm(`Payment amount (₹${amount.toLocaleString('en-IN')}) exceeds currently outstanding commission (₹${outstanding.toLocaleString('en-IN')}). Proceed as advance/excess settlement?`)) {
+src/components/pt/PTCommissionSettlementModal.tsx:41:outstanding -> if (!window.confirm(`Payment amount (₹${amount.toLocaleString('en-IN')}) exceeds currently outstanding commission (₹${outstanding.toLocaleString('en-IN')}). Proceed as advance/excess settlement?`)) {
+src/components/pt/PTCommissionSettlementModal.tsx:109:t.ptCommissionOutstanding -> {t.fullName} (Outstanding: ₹{t.ptCommissionOutstanding.toLocaleString('en-IN')})
+src/components/pt/PTCommissionSettlementModal.tsx:121:earned -> ₹{earned.toLocaleString('en-IN')}
+src/components/pt/PTCommissionSettlementModal.tsx:127:paid -> ₹{paid.toLocaleString('en-IN')}
+src/components/pt/PTCommissionSettlementModal.tsx:133:outstanding -> ₹{outstanding.toLocaleString('en-IN')}
+src/components/pt/PTCommissionSettlementModal.tsx:149:outstanding -> Fill Full Due (₹{outstanding.toLocaleString('en-IN')})
+src/components/pt/PTDashboardOverview.tsx:110:245000) -> ₹{(grossPTRevenue || 245000).toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:128:147000) -> ₹{(totalTrainerCommissionEarned || 147000).toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:133:totalTrainerCommissionPaid -> Paid: ₹{totalTrainerCommissionPaid.toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:144:98000) -> ₹{(branchRetainedShare || 98000).toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:244:sub.paidAmount -> ₹{sub.paidAmount.toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:247:trainerCut -> ₹{trainerCut.toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:250:branchCut -> ₹{branchCut.toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:320:32500) -> ₹{(trainer.ptCommissionEarned || 32500).toLocaleString('en-IN')}
+src/components/pt/PTDashboardOverview.tsx:425:Number(val) -> formatter={(val: any) => [`₹${Number(val).toLocaleString('en-IN')}`, '']}
+src/components/pt/PTPackageManager.tsx:84:fixedTrainerAmount -> ? `Fixed ₹${fixedTrainerAmount.toLocaleString('en-IN')} Trainer Amount`
+src/components/pt/PTPackageManager.tsx:191:pkg.price -> ₹{pkg.price.toLocaleString('en-IN')}
+src/components/pt/PTPackageManager.tsx:211:splitPreview.trainerShare -> Trainer: <strong className="text-slate-800">₹{splitPreview.trainerShare.toLocaleString('en-IN')}</strong>
+src/components/pt/PTPackageManager.tsx:214:splitPreview.branchShare -> Branch: <strong className="text-slate-800">₹{splitPreview.branchShare.toLocaleString('en-IN')}</strong>
+src/components/pt/PTSubscriptionsView.tsx:241:0) -> ₹{(sub.packagePrice || sub.netPrice || 0).toLocaleString('en-IN')}
+src/components/pt/PTSubscriptionsView.tsx:286:sub.paidAmount -> Paid: ₹{sub.paidAmount.toLocaleString('en-IN')}
+src/components/pt/PTSubscriptionsView.tsx:290:sub.dueAmount -> Due: ₹{sub.dueAmount.toLocaleString('en-IN')}
+src/components/pt/PTSubscriptionsView.tsx:526:p.price -> {p.name} - ₹{p.price.toLocaleString('en-IN')} ({p.sessionsCount} Sessions, {p.durationDays} Days)
+src/components/pt/PTTrainerEarningsDashboard.tsx:115:ptGrossGenerated -> ₹{ptGrossGenerated.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:123:totalCommissionEarned -> ₹{totalCommissionEarned.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:131:totalCommissionPaid -> ₹{totalCommissionPaid.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:139:commissionOutstanding -> ₹{commissionOutstanding.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:216:sub.price -> ₹{sub.price.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:224:sub.trainerShare -> ₹{sub.trainerShare.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:227:sub.branchShare -> ₹{sub.branchShare.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:259:sub.paidAmount -> Paid ₹{sub.paidAmount.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:263:sub.trainerShare -> ₹{sub.trainerShare.toLocaleString('en-IN')}
+src/components/pt/PTTrainerEarningsDashboard.tsx:346:set.amount -> ₹{set.amount.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:153:generalMembershipRevenue -> ₹{generalMembershipRevenue.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:163:ptGrossRevenue -> ₹{ptGrossRevenue.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:173:otherRevenue -> ₹{otherRevenue.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:183:refundsIssued -> -₹{refundsIssued.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:193:netRevenue -> ₹{netRevenue.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:207:ptGrossRevenue -> Gross PT: ₹{ptGrossRevenue.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:218:totalTrainerShare -> ₹{totalTrainerShare.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:234:branchRetainedShare -> ₹{branchRetainedShare.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:290:bGross -> <div className="font-black text-slate-900">₹{bGross.toLocaleString('en-IN')}</div>
+src/components/reports/CombinedRevenueReport.tsx:294:bTrainerShare -> <div className="font-bold text-indigo-600">₹{bTrainerShare.toLocaleString('en-IN')}</div>
+src/components/reports/CombinedRevenueReport.tsx:298:bBranchShare -> <div className="font-bold text-cyan-800">₹{bBranchShare.toLocaleString('en-IN')}</div>
+src/components/reports/CombinedRevenueReport.tsx:319:tr.ptCommissionEarned -> Commission Accrued: ₹{tr.ptCommissionEarned.toLocaleString('en-IN')}
+src/components/reports/CombinedRevenueReport.tsx:341:s.price -> <td className="p-2 text-right">₹{s.price.toLocaleString('en-IN')}</td>
+src/components/reports/CombinedRevenueReport.tsx:343:s.paidAmount -> ₹{s.paidAmount.toLocaleString('en-IN')}
+src/components/trainees/TraineeDetailModal.tsx:187:0) -> Package Price: <strong>₹{(sub.packagePrice || sub.netPrice || 0).toLocaleString('en-IN')}</strong> | Paid: <strong className="text-emerald-600">₹{sub.paidAmount.toLocaleString('en-IN')}</strong>
+src/components/trainees/TraineeDetailModal.tsx:187:sub.paidAmount -> Package Price: <strong>₹{(sub.packagePrice || sub.netPrice || 0).toLocaleString('en-IN')}</strong> | Paid: <strong className="text-emerald-600">₹{sub.paidAmount.toLocaleString('en-IN')}</strong>
+src/components/trainees/TraineeDetailModal.tsx:193:sub.dueAmount -> Due: ₹{sub.dueAmount.toLocaleString('en-IN')}
+src/components/trainees/TraineeDetailModal.tsx:237:trainee.totalPaid -> <div>Total Paid: <strong className="text-emerald-600">₹{trainee.totalPaid.toLocaleString('en-IN')}</strong></div>
+src/components/trainees/TraineeDetailModal.tsx:238:trainee.totalDue -> <div>Total Due: <strong className="text-rose-600">₹{trainee.totalDue.toLocaleString('en-IN')}</strong></div>
+src/components/trainees/TraineeDetailModal.tsx:273:tx.membershipAmount -> ₹{tx.membershipAmount.toLocaleString('en-IN')}
+src/components/trainees/TraineeDetailModal.tsx:276:tx.ptAmount -> ₹{tx.ptAmount.toLocaleString('en-IN')}
+src/components/trainees/TraineeDetailModal.tsx:279:tx.totalAmount -> ₹{tx.totalAmount.toLocaleString('en-IN')}
+src/components/trainees/TraineeDetailModal.tsx:317:trainee.totalDue -> Total Outstanding Balance: <strong className="text-rose-600 text-sm">₹{trainee.totalDue.toLocaleString('en-IN')}</strong>
+src/components/trainees/TraineeList.tsx:215:0))) -> ₹{(trainee.membershipDue ?? Math.max(0, trainee.totalDue - (ptSub?.dueAmount || 0))).toLocaleString('en-IN')}
+src/components/trainees/TraineeList.tsx:219:0)) -> ₹{(trainee.ptDue ?? (ptSub?.dueAmount || 0)).toLocaleString('en-IN')}
+src/components/trainees/TraineeList.tsx:223:trainee.totalDue -> ₹{trainee.totalDue.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:59:trainer.baseSalary -> {trainer.phone} • Base Salary: ₹{trainer.baseSalary.toLocaleString('en-IN')}/mo ({trainer.salaryType})
+src/components/trainers/TrainerDetailModal.tsx:116:ptRevenueGenerated -> ₹{ptRevenueGenerated.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:122:trainer.ptCommissionEarned -> ₹{trainer.ptCommissionEarned.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:128:trainer.ptCommissionPaid -> ₹{trainer.ptCommissionPaid.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:134:trainer.ptCommissionOutstanding -> ₹{trainer.ptCommissionOutstanding.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:144:trainer.ptCommissionOutstanding -> Outstanding balance: ₹{trainer.ptCommissionOutstanding.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:178:sub.price -> ₹{sub.price.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:181:sub.trainerShare -> ₹{sub.trainerShare.toLocaleString('en-IN')}
+src/components/trainers/TrainerDetailModal.tsx:232:set.amount -> <div className="font-bold text-emerald-600 text-sm">₹{set.amount.toLocaleString('en-IN')}</div>
+src/components/trainers/TrainerList.tsx:140:totalCommissionEarned -> ₹{totalCommissionEarned.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:151:totalCommissionPaid -> ₹{totalCommissionPaid.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:162:totalCommissionOutstanding -> ₹{totalCommissionOutstanding.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:234:t.baseSalary -> ₹{t.baseSalary.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:246:t.ptCommissionEarned -> ₹{t.ptCommissionEarned.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:250:t.ptCommissionPaid -> ₹{t.ptCommissionPaid.toLocaleString('en-IN')}
+src/components/trainers/TrainerList.tsx:254:t.ptCommissionOutstanding -> ₹{t.ptCommissionOutstanding.toLocaleString('en-IN')}
+src/services/printService.ts:38:item.amount -> const amt = `₹${item.amount.toLocaleString('en-IN')}`.padStart(14, ' ');
+src/services/printService.ts:43:receipt.currentPayment -> output += `TOTAL PAID:          ₹${receipt.currentPayment.toLocaleString('en-IN')}\n`;
+src/services/printService.ts:45:receipt.previousDue -> output += `Prev Balance:        ₹${receipt.previousDue.toLocaleString('en-IN')}\n`;
+src/services/printService.ts:46:receipt.remainingDue -> output += `Current Balance:     ₹${receipt.remainingDue.toLocaleString('en-IN')}\n`;
+src/services/ptRevenueService.ts:36:packagePrice -> auditBreakdown.push({ label: 'Package Stated Price', value: `₹${packagePrice.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:38:discount -> auditBreakdown.push({ label: 'Discount Applied', value: `-₹${discount.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:40:netPTRevenue -> auditBreakdown.push({ label: 'Net Collected PT Revenue', value: `₹${netPTRevenue.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:54:calculationBase -> formulaExplanation = `₹${calculationBase.toLocaleString('en-IN')} × ${trainerPercent}% = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')} (${branchPercent}% nominal).`;
+src/services/ptRevenueService.ts:54:trainerShare -> formulaExplanation = `₹${calculationBase.toLocaleString('en-IN')} × ${trainerPercent}% = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')} (${branchPercent}% nominal).`;
+src/services/ptRevenueService.ts:54:branchShare -> formulaExplanation = `₹${calculationBase.toLocaleString('en-IN')} × ${trainerPercent}% = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')} (${branchPercent}% nominal).`;
+src/services/ptRevenueService.ts:57:trainerShare -> auditBreakdown.push({ label: 'Trainer Allocation', value: `₹${trainerShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:58:branchShare -> auditBreakdown.push({ label: 'Branch Allocation', value: `₹${branchShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:67:fixedAmt -> formulaExplanation = `Fixed Trainer Agreement: ₹${fixedAmt.toLocaleString('en-IN')}. Branch retains net remainder ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:67:branchShare -> formulaExplanation = `Fixed Trainer Agreement: ₹${fixedAmt.toLocaleString('en-IN')}. Branch retains net remainder ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:68:fixedAmt -> auditBreakdown.push({ label: 'Fixed Trainer Fee', value: `₹${fixedAmt.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:69:trainerShare -> auditBreakdown.push({ label: 'Trainer Allocation', value: `₹${trainerShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:70:branchShare -> auditBreakdown.push({ label: 'Branch Allocation', value: `₹${branchShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:81:perSessionRate -> formulaExplanation = `${totalSessions} Sessions @ ₹${perSessionRate.toLocaleString('en-IN')}/session = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:81:trainerShare -> formulaExplanation = `${totalSessions} Sessions @ ₹${perSessionRate.toLocaleString('en-IN')}/session = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:81:branchShare -> formulaExplanation = `${totalSessions} Sessions @ ₹${perSessionRate.toLocaleString('en-IN')}/session = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:82:perSessionRate -> auditBreakdown.push({ label: 'Per Session Commission', value: `₹${perSessionRate.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:84:trainerShare -> auditBreakdown.push({ label: 'Trainer Allocation', value: `₹${trainerShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:85:branchShare -> auditBreakdown.push({ label: 'Branch Allocation', value: `₹${branchShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:96:base -> formulaExplanation = `Base: ₹${base.toLocaleString('en-IN')} + (${percent}% of ₹${calculationBase.toLocaleString('en-IN')} = ₹${variable.toLocaleString('en-IN')}) = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:96:calculationBase -> formulaExplanation = `Base: ₹${base.toLocaleString('en-IN')} + (${percent}% of ₹${calculationBase.toLocaleString('en-IN')} = ₹${variable.toLocaleString('en-IN')}) = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:96:variable -> formulaExplanation = `Base: ₹${base.toLocaleString('en-IN')} + (${percent}% of ₹${calculationBase.toLocaleString('en-IN')} = ₹${variable.toLocaleString('en-IN')}) = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:96:trainerShare -> formulaExplanation = `Base: ₹${base.toLocaleString('en-IN')} + (${percent}% of ₹${calculationBase.toLocaleString('en-IN')} = ₹${variable.toLocaleString('en-IN')}) = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:96:branchShare -> formulaExplanation = `Base: ₹${base.toLocaleString('en-IN')} + (${percent}% of ₹${calculationBase.toLocaleString('en-IN')} = ₹${variable.toLocaleString('en-IN')}) = ₹${trainerShare.toLocaleString('en-IN')} (Trainer). Branch retains ₹${branchShare.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:97:base -> auditBreakdown.push({ label: 'Base Trainer Stipend', value: `₹${base.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:98:variable -> auditBreakdown.push({ label: 'Variable Commission %', value: `${percent}% (₹${variable.toLocaleString('en-IN')})` });
+src/services/ptRevenueService.ts:99:trainerShare -> auditBreakdown.push({ label: 'Total Trainer Share', value: `₹${trainerShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:100:branchShare -> auditBreakdown.push({ label: 'Branch Share', value: `₹${branchShare.toLocaleString('en-IN')}` });
+src/services/ptRevenueService.ts:153:validRefund -> explanation = `Proportional Policy A: Refund of ₹${validRefund.toLocaleString('en-IN')} (${(ratio * 100).toFixed(1)}%) reduces Trainer Commission by ₹${trainerReduction.toLocaleString('en-IN')} and Branch by ₹${branchReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:153:trainerReduction -> explanation = `Proportional Policy A: Refund of ₹${validRefund.toLocaleString('en-IN')} (${(ratio * 100).toFixed(1)}%) reduces Trainer Commission by ₹${trainerReduction.toLocaleString('en-IN')} and Branch by ₹${branchReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:153:branchReduction -> explanation = `Proportional Policy A: Refund of ₹${validRefund.toLocaleString('en-IN')} (${(ratio * 100).toFixed(1)}%) reduces Trainer Commission by ₹${trainerReduction.toLocaleString('en-IN')} and Branch by ₹${branchReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:161:earnedByTrainer -> explanation = `Policy B (Completed Sessions Protected): Trainer has delivered ${completedSessions}/${totalSessions} sessions earning ₹${earnedByTrainer.toLocaleString('en-IN')}. Trainer reduction capped at ₹${trainerReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:161:trainerReduction -> explanation = `Policy B (Completed Sessions Protected): Trainer has delivered ${completedSessions}/${totalSessions} sessions earning ₹${earnedByTrainer.toLocaleString('en-IN')}. Trainer reduction capped at ₹${trainerReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:168:newNetRevenue -> explanation = `Policy C (Recalculated on Remaining ₹${newNetRevenue.toLocaleString('en-IN')}): New Trainer Share is ₹${newTrainerShare.toLocaleString('en-IN')}. Reduction is ₹${trainerReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:168:newTrainerShare -> explanation = `Policy C (Recalculated on Remaining ₹${newNetRevenue.toLocaleString('en-IN')}): New Trainer Share is ₹${newTrainerShare.toLocaleString('en-IN')}. Reduction is ₹${trainerReduction.toLocaleString('en-IN')}.`;
+src/services/ptRevenueService.ts:168:trainerReduction -> explanation = `Policy C (Recalculated on Remaining ₹${newNetRevenue.toLocaleString('en-IN')}): New Trainer Share is ₹${newTrainerShare.toLocaleString('en-IN')}. Reduction is ₹${trainerReduction.toLocaleString('en-IN')}.`;
+src/services/storageService.ts:1492:payment.totalAmount -> `Payment of ₹${payment.totalAmount.toLocaleString('en-IN')} (GM: ₹${payment.allocation.generalMembershipAmount.toLocaleString('en-IN')}, PT: ₹${payment.allocation.ptAmount.toLocaleString('en-IN')}) for ${payment.traineeName}`
+src/services/storageService.ts:1492:payment.allocation.generalMembershipAmount -> `Payment of ₹${payment.totalAmount.toLocaleString('en-IN')} (GM: ₹${payment.allocation.generalMembershipAmount.toLocaleString('en-IN')}, PT: ₹${payment.allocation.ptAmount.toLocaleString('en-IN')}) for ${payment.traineeName}`
+src/services/storageService.ts:1492:payment.allocation.ptAmount -> `Payment of ₹${payment.totalAmount.toLocaleString('en-IN')} (GM: ₹${payment.allocation.generalMembershipAmount.toLocaleString('en-IN')}, PT: ₹${payment.allocation.ptAmount.toLocaleString('en-IN')}) for ${payment.traineeName}`
+src/services/storageService.ts:1520:settlement.amount -> `Settled ₹${settlement.amount.toLocaleString('en-IN')} commission to trainer ${settlement.trainerName} via ${settlement.paymentMethod}`
+src/services/storageService.ts:1548:refund.amount -> `Refund of ₹${refund.amount.toLocaleString('en-IN')} (${refund.refundType}) for ${refund.traineeName}: ${refund.reason}`

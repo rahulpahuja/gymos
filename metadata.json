@@ -1,0 +1,6 @@
+{
+  "name": "GymOS - Gym & Personal Training Management System",
+  "description": "Multi-branch gym operations system with dedicated personal training revenue segregation, trainer commission splitting, session tracking, and financial ledgers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

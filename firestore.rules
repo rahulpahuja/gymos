@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isSelf(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isOwnerEmail() {
+      return isAuthenticated() && 
+        request.auth.token.email != null &&
+        (request.auth.token.email == 'rahulpahuja2015@gmail.com' || request.auth.token.email.lower() == 'rahulpahuja2015@gmail.com');
+    }
+
+    // Check if user is approved admin
+    function isAdmin() {
+      return isAuthenticated() && 
+        (isOwnerEmail() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'));
+    }
+
+    // Check if user is approved (admin, manager, or trainer)
+    function isApprovedUser() {
+      return isAuthenticated() && 
+        (isOwnerEmail() ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'));
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      // Authenticated users can read user records (required for staff directory & approval checks)
+      allow read: if isAuthenticated();
+      
+      // User can create their own profile on sign-up, or Admin can pre-authorize profiles
+      allow create: if isAuthenticated() && (isSelf(userId) || isAdmin());
+      
+      // Admins can approve/update any profile, or users can update their own non-role fields
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (isSelf(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'approvedBy', 'approvedAt'])))
+      );
+      
+      // Admins can delete users
+      allow delete: if isAdmin();
+    }
+
+    // Branches Collection: readable by all authenticated users (required for target branch dropdowns)
+    match /branches/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isApprovedUser();
+    }
+
+    // Operational Collections: allow access for authenticated, approved users
+    match /trainees/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /trainers/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /pt_packages/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /pt_subscriptions/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /pt_sessions/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /payments/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /pt_settlements/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /attendance/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /enquiries/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /expenses/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /equipment/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+    match /audit_logs/{document=**} {
+      allow read, write: if isApprovedUser();
+    }
+  }
+}

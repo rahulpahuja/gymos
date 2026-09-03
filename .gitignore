@@ -1,0 +1,24 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+
+# Environment variables
+.env*
+!.env.example
+
+# Secrets & credentials
+firebase-applet-config.json
+.firebaserc
+*.pem
+*.key
+*.p12
+*.keystore
+service-account*.json
+serviceAccount*.json
+*-service-account.json
+google-services.json
+GoogleService-Info.plist
+secrets.json

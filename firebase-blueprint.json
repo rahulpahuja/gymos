@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User account with authentication, role assignment, branch mapping, and approval state",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "trainer"] },
+        "branchId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "requestedRole": { "type": "string" },
+        "requestedBranch": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "rejectionReason": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "email", "role", "status", "createdAt"]
+    },
+    "Branch": {
+      "title": "Branch",
+      "description": "Physical gym branch location",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "city": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "Segregated payment ledger entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "traineeId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "branchId", "totalAmount"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User accounts with approval lifecycle"
+    },
+    "/branches/{branchId}": {
+      "schema": "Branch",
+      "description": "Gym branch master records"
+    },
+    "/trainees/{traineeId}": {
+      "schema": "object",
+      "description": "Gym members & trainees"
+    },
+    "/trainers/{trainerId}": {
+      "schema": "object",
+      "description": "Fitness trainers and commission rate profiles"
+    },
+    "/pt_packages/{packageId}": {
+      "schema": "object",
+      "description": "Configurable PT pricing and split packages"
+    },
+    "/pt_subscriptions/{subscriptionId}": {
+      "schema": "object",
+      "description": "Member personal training packages and assignments"
+    },
+    "/pt_sessions/{sessionId}": {
+      "schema": "object",
+      "description": "Conducted PT workout sessions"
+    },
+    "/payments/{paymentId}": {
+      "schema": "PaymentTransaction",
+      "description": "Financial ledger payments"
+    },
+    "/pt_settlements/{settlementId}": {
+      "schema": "object",
+      "description": "Trainer commission disbursement records"
+    },
+    "/attendance/{recordId}": {
+      "schema": "object",
+      "description": "Biometric check-in logs"
+    },
+    "/enquiries/{enquiryId}": {
+      "schema": "object",
+      "description": "Lead CRM inquiries"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "object",
+      "description": "Gym branch operating expenses"
+    },
+    "/equipment/{equipmentId}": {
+      "schema": "object",
+      "description": "Gym equipment inventory"
+    },
+    "/audit_logs/{logId}": {
+      "schema": "object",
+      "description": "Immutable security & financial audit trail"
+    }
+  }
+}
