@@ -50,6 +50,8 @@ Recharts · lucide-react.
 - Type-check: `npm run lint`
 - Netlify: `netlify.toml` is included — connect the repo, add the `VITE_FIREBASE_*`
   environment variables (Site settings → Environment variables), and deploy.
+- Firestore rules: `firebase.json` / `.firebaserc` target the `gymos-f3fa6` project.
+  Deploy with `npx firebase login` (once) then `npm run deploy:rules`.
 
 ## License
 

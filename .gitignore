@@ -16,7 +16,6 @@ pnpm-lock.yaml
 
 # Secrets & credentials
 firebase-applet-config.json
-.firebaserc
 *.pem
 *.key
 *.p12
