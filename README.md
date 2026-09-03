@@ -38,9 +38,8 @@ Recharts · lucide-react.
 
 1. Install dependencies:
    `npm install`
-2. `firebase-applet-config.json` (client Firebase web config) is committed and
-   used as-is. To target a different Firebase project, edit that file — use
-   `firebase-applet-config.example.json` as the shape reference.
+2. Copy `.env.example` to `.env.local` and fill in your Firebase web config
+   (`VITE_FIREBASE_*`) from Firebase console → Project settings → Your apps.
 3. Optionally set `GEMINI_API_KEY` in `.env.local` for Gemini API calls.
 4. Start the dev server:
    `npm run dev`
@@ -49,8 +48,8 @@ Recharts · lucide-react.
 
 - Production build: `npm run build` (output in `dist/`)
 - Type-check: `npm run lint`
-- Netlify: `netlify.toml` is included — connect the repo and deploy. The Firebase
-  web config is committed, so no extra build configuration is required.
+- Netlify: `netlify.toml` is included — connect the repo, add the `VITE_FIREBASE_*`
+  environment variables (Site settings → Environment variables), and deploy.
 
 ## License
 

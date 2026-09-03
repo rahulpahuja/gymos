@@ -10,14 +10,12 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
-# Environment variables
+# Environment variables (Firebase web config lives here as VITE_FIREBASE_*)
 .env*
 !.env.example
 
 # Secrets & credentials
-# NOTE: firebase-applet-config.json holds only the client Firebase web config
-# (API key, project/app IDs). These are not secrets - they ship in the browser
-# bundle and are gated by Firestore rules + Auth settings - so it IS committed.
+firebase-applet-config.json
 .firebaserc
 *.pem
 *.key

@@ -21,8 +21,28 @@ import {
   orderBy,
   Unsubscribe,
 } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
 import { UserAccount, UserRole, UserApprovalStatus } from '../types';
+
+// Firebase client web config — sourced from Vite env vars (see .env.example).
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+};
+
+// Optional named Firestore database; empty falls back to the default database.
+const firestoreDatabaseId = import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || '';
+
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error(
+    '[Firebase] Missing VITE_FIREBASE_* environment variables. ' +
+      'Copy .env.example to .env.local and fill in your Firebase web config.'
+  );
+}
 
 // Initialize Firebase App
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
@@ -34,13 +54,8 @@ googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
-// Firestore with named Database ID provisioned
-export const db = getFirestore(
-  app,
-  firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== ''
-    ? firebaseConfig.firestoreDatabaseId
-    : '(default)'
-);
+// Firestore (named database when provided, otherwise the default database)
+export const db = getFirestore(app, firestoreDatabaseId !== '' ? firestoreDatabaseId : '(default)');
 
 // Connection test on boot
 async function testFirestoreConnection() {
