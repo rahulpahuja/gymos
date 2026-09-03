@@ -36,7 +36,7 @@ interface SidebarProps {
   setActiveTab?: (tab: NavigationTab) => void;
   onSelectTab?: (tab: NavigationTab) => void;
   currentUser?: CurrentUser;
-  currentRole?: 'admin' | 'manager' | 'trainer';
+  currentRole?: 'admin' | 'manager' | 'trainer' | 'trainee';
   pendingApprovalsCount?: number;
   onOpenCalculator?: () => void;
   onSignOut?: () => void;
@@ -128,14 +128,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'users' as NavigationTab,
       label: 'Staff & Approvals',
       icon: UserCheck,
-      roles: ['admin'],
+      roles: ['admin', 'manager'],
       badge: (pendingApprovalsCount || 0) > 0 ? `${pendingApprovalsCount} New` : undefined,
     },
     {
       id: 'audit' as NavigationTab,
       label: 'Security & Audit Trail',
       icon: GitBranch,
-      roles: ['admin'],
+      roles: ['admin', 'manager'],
     },
     {
       id: 'settings' as NavigationTab,

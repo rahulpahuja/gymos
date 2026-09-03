@@ -1,21 +1,59 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# GymOS — Gym & Personal Training Management System
 
-# Run and deploy your AI Studio app
+GymOS is a multi-branch gym operations platform with dedicated personal-training
+(PT) revenue segregation, trainer commission splitting, session tracking, and
+financial ledgers.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/d37232c1-786d-4a66-9ee0-e5d1505f0a62
+- **Multi-branch operations** — a single global branch selector scopes every data
+  section (dashboards, trainees, trainers, payments, attendance, reports, audit).
+- **Personal Training engine** — configurable packages, revenue-sharing rules
+  (percentage / fixed / per-session / hybrid), settlements, and refund clawbacks.
+- **Role-based access** — Super Admin, Branch Manager, PT Trainer, and Member.
+  Managers and admins approve trainer/member sign-ups and link each login to its
+  operational record.
+- **Self-service portals**
+  - *Trainer portal:* salary statement (PDF), advance statement, dues, PT
+    sessions and attendance downloads.
+  - *Member portal:* account statement (PDF), payment history, PT packages, and
+    attendance downloads.
+- **Period reviews everywhere** — monthly / quarterly / yearly (with month & year
+  pickers) or a custom from/to date range on payments, attendance, expenses, PT
+  sessions, reports, audit trail, and both portals.
+- **Admin data backup** — download a full JSON snapshot of every collection and
+  restore from it (Settings → Full Data Backup & Restore, admin only).
+- **Biometric attendance** bridge simulation and thermal / PDF receipts.
+- **Firebase Auth + Firestore** real-time sync with an offline-capable local
+  store, plus an instant demo mode.
 
-## Run Locally
+## Tech stack
 
-**Prerequisites:**  Node.js
+React 19 · TypeScript · Vite · Tailwind CSS v4 · Firebase (Auth + Firestore) ·
+Recharts · lucide-react.
 
+## Run locally
+
+**Prerequisites:** Node.js 20+
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Create `firebase-applet-config.json` by copying `firebase-applet-config.example.json` and filling in your Firebase project credentials (this file is git-ignored)
-4. Run the app:
+2. Copy `firebase-applet-config.example.json` to `firebase-applet-config.json`
+   and fill in your Firebase project credentials (this file is git-ignored).
+3. Optionally set `GEMINI_API_KEY` in `.env.local` for Gemini API calls.
+4. Start the dev server:
    `npm run dev`
+
+## Build & deploy
+
+- Production build: `npm run build` (output in `dist/`)
+- Type-check: `npm run lint`
+- Netlify: `netlify.toml` is included — connect the repo and deploy. Provide the
+  real `firebase-applet-config.json` (or Netlify build environment values); the
+  build falls back to the example config so preview builds still succeed.
+
+## License
+
+Proprietary. Copyright © 2026 Rahul Pahuja and Mobile1x. All rights reserved.
+See [LICENSE](LICENSE) — copying, downloading, or distribution without prior
+written approval from Rahul Pahuja or Mobile1x is prohibited.

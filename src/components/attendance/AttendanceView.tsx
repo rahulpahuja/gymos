@@ -17,6 +17,8 @@ import {
 import { AttendanceRecord, Trainee, Trainer, Branch } from '../../types';
 import { storageService } from '../../services/storageService';
 import { biometricBridge } from '../../services/biometricBridgeService';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod } from '../../utils/period';
 
 interface AttendanceViewProps {
   attendanceRecords: AttendanceRecord[];
@@ -33,6 +35,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'trainees' | 'trainers'>('trainees');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
   const [isScanModalOpen, setIsScanModalOpen] = useState<boolean>(false);
   const [isManualModalOpen, setIsManualModalOpen] = useState<boolean>(false);
   const [scanStatus, setScanStatus] = useState<string>('idle');
@@ -46,7 +49,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
 
   const today = new Date().toISOString().substring(0, 10);
 
-  const filteredRecords = attendanceRecords.filter((rec) => {
+  const filteredRecords = filterByPeriod<AttendanceRecord>(attendanceRecords, (rec) => rec.date, period).filter((rec) => {
     if (rec.personType !== (activeTab === 'trainees' ? 'trainee' : 'trainer')) return false;
     if (selectedBranchId !== 'all' && rec.branchId !== selectedBranchId) return false;
     return true;
@@ -309,18 +312,21 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
           </button>
         </div>
 
-        <select
-          value={selectedBranchId}
-          onChange={(e) => setSelectedBranchId(e.target.value)}
-          className="px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700"
-        >
-          <option value="all">All Branches</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} />
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value)}
+            className="px-3 py-1.5 bg-gray-50 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700"
+          >
+            <option value="all">All Branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Attendance Table */}

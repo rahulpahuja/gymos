@@ -64,8 +64,8 @@ export const ApprovalPendingScreen: React.FC<ApprovalPendingScreenProps> = ({
         </h2>
         <p className="text-xs text-slate-400 mb-6 leading-relaxed">
           {isRejected
-            ? 'Your access request to FitOS Pro was not approved by the system administrator.'
-            : 'Your registration was received. An authorized Super Administrator must review and approve your account before you can access gym data.'}
+            ? 'Your access request to GymOS was not approved by the system administrator.'
+            : 'Your registration was received. A Super Administrator or your Branch Manager must review and approve your account before you can access GymOS.'}
         </p>
 
         {/* User Card */}

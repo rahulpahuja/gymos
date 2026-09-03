@@ -24,6 +24,9 @@ import { firestoreSync } from './services/firestoreSync';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { ApprovalPendingScreen } from './components/auth/ApprovalPendingScreen';
 import { UserManagementView } from './components/users/UserManagementView';
+import { TrainerPortal } from './components/portal/TrainerPortal';
+import { TraineePortal } from './components/portal/TraineePortal';
+import { LogOut } from 'lucide-react';
 import {
   Trainee,
   Trainer,
@@ -42,7 +45,9 @@ import {
   UserAccount,
   CurrentUser,
   UserRole,
+  PORTAL_ROLES,
 } from './types';
+import { scopeByBranch } from './utils/branchScope';
 import { NavigationTab } from './components/layout/Sidebar';
 
 export default function App() {
@@ -158,8 +163,8 @@ export default function App() {
         };
         storageService.setCurrentUser(activeUser);
 
-        // Realtime listener for pending approvals badge (only for admin)
-        if (account.role === 'admin' && !unsubUsers) {
+        // Realtime listener for pending approvals badge (admins and branch managers)
+        if ((account.role === 'admin' || account.role === 'manager') && !unsubUsers) {
           unsubUsers = firebaseAuthService.subscribeAllUsers((allUsers) => {
             const pendingCount = allUsers.filter((u) => u.status === 'pending').length;
             setPendingApprovalsCount(pendingCount);
@@ -239,8 +244,29 @@ export default function App() {
         role: currentRole,
         branchId: currentBranchId,
         photoURL: currentUserAccount.photoURL,
+        linkedTrainerId: currentUserAccount.linkedTrainerId,
+        linkedTraineeId: currentUserAccount.linkedTraineeId,
       }
     : storageService.getCurrentUser();
+
+  const isPortalRole = PORTAL_ROLES.includes(currentRole);
+
+  // Global branch scope: every data section is narrowed to the selected branch.
+  // Portal roles (trainer / trainee) are always locked to their own branch.
+  const scopeBranchId = isPortalRole
+    ? currentUserAccount?.branchId || currentBranchId
+    : currentBranchId;
+  const scopedTrainees = scopeByBranch(trainees, scopeBranchId);
+  const scopedTrainers = scopeByBranch(trainers, scopeBranchId);
+  const scopedSubscriptions = scopeByBranch(subscriptions, scopeBranchId);
+  const scopedSessions = scopeByBranch(sessions, scopeBranchId);
+  const scopedTransactions = scopeByBranch(transactions, scopeBranchId);
+  const scopedAttendance = scopeByBranch(attendance, scopeBranchId);
+  const scopedEnquiries = scopeByBranch(enquiries, scopeBranchId);
+  const scopedExpenses = scopeByBranch(expenses, scopeBranchId);
+  const scopedEquipment = scopeByBranch(equipment, scopeBranchId);
+  const scopedSettlements = scopeByBranch(settlements, scopeBranchId);
+  const scopedAuditLogs = scopeByBranch(auditLogs, scopeBranchId);
 
   // Loading Screen
   if (authLoading && !isDemoMode) {
@@ -289,6 +315,72 @@ export default function App() {
     );
   }
 
+  // Self-service portal shell for trainer / trainee logins
+  if (isPortalRole && !isDemoMode) {
+    return (
+      <div className="min-h-screen w-full bg-[#F3F4F6] dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans antialiased transition-colors">
+        <header className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
+              G
+            </div>
+            <div>
+              <h1 className="text-base font-bold leading-tight">GymOS</h1>
+              <p className="text-[11px] text-gray-500 dark:text-slate-400 capitalize">
+                {currentRole} Self-Service Portal
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {effectiveCurrentUser.photoURL ? (
+              <img
+                src={effectiveCurrentUser.photoURL}
+                alt={effectiveCurrentUser.name}
+                className="w-8 h-8 rounded-full object-cover border border-gray-300 dark:border-slate-600"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold">
+                {effectiveCurrentUser.name?.substring(0, 2).toUpperCase() || 'U'}
+              </div>
+            )}
+            <button
+              onClick={handleSignOut}
+              className="p-1.5 text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </header>
+        <main className="p-4 md:p-6 lg:p-7">
+          <div className="max-w-6xl mx-auto">
+            {currentRole === 'trainer' ? (
+              <TrainerPortal
+                currentUser={effectiveCurrentUser}
+                trainers={trainers}
+                branches={branches}
+                sessions={sessions}
+                subscriptions={subscriptions}
+                settlements={settlements}
+                attendance={attendance}
+              />
+            ) : (
+              <TraineePortal
+                currentUser={effectiveCurrentUser}
+                trainees={trainees}
+                branches={branches}
+                transactions={transactions}
+                subscriptions={subscriptions}
+                sessions={sessions}
+                attendance={attendance}
+              />
+            )}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full bg-[#F3F4F6] dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans antialiased overflow-hidden transition-colors">
       {/* Sidebar */}
@@ -330,6 +422,8 @@ export default function App() {
               <UserManagementView
                 branches={branches}
                 currentUser={effectiveCurrentUser}
+                trainers={trainers}
+                trainees={trainees}
               />
             )}
             {/* Dashboard View */}
@@ -337,11 +431,11 @@ export default function App() {
               <>
                 {currentRole === 'admin' ? (
                   <AdminDashboard
-                    trainees={trainees}
-                    trainers={trainers}
-                    subscriptions={subscriptions}
-                    sessions={sessions}
-                    transactions={transactions}
+                    trainees={scopedTrainees}
+                    trainers={scopedTrainers}
+                    subscriptions={scopedSubscriptions}
+                    sessions={scopedSessions}
+                    transactions={scopedTransactions}
                     branches={branches}
                     onOpenNewPayment={() => setIsPaymentModalOpen(true)}
                     onNavigateTab={setActiveTab}
@@ -350,11 +444,11 @@ export default function App() {
                 ) : (
                   <ManagerDashboard
                     branch={activeBranch}
-                    trainees={trainees}
-                    trainers={trainers}
-                    subscriptions={subscriptions}
-                    sessions={sessions}
-                    transactions={transactions}
+                    trainees={scopedTrainees}
+                    trainers={scopedTrainers}
+                    subscriptions={scopedSubscriptions}
+                    sessions={scopedSessions}
+                    transactions={scopedTransactions}
                     onOpenNewPayment={() => setIsPaymentModalOpen(true)}
                     onNavigateTab={setActiveTab}
                   />
@@ -366,12 +460,12 @@ export default function App() {
             {activeTab === 'pt_hub' && (
               <PTHub
                 branches={branches}
-                trainers={trainers}
-                trainees={trainees}
+                trainers={scopedTrainers}
+                trainees={scopedTrainees}
                 packages={packages}
-                subscriptions={subscriptions}
-                sessions={sessions}
-                settlements={settlements}
+                subscriptions={scopedSubscriptions}
+                sessions={scopedSessions}
+                settlements={scopedSettlements}
                 onOpenCalculator={() => setIsCalculatorOpen(true)}
                 onOpenNewPayment={() => setIsPaymentModalOpen(true)}
                 onOpenRecordPayment={() => setIsPaymentModalOpen(true)}
@@ -382,8 +476,8 @@ export default function App() {
             {/* Trainees Directory with Section 78 PT Tab */}
             {activeTab === 'trainees' && (
               <TraineeList
-                trainees={trainees}
-                ptSubscriptions={subscriptions}
+                trainees={scopedTrainees}
+                ptSubscriptions={scopedSubscriptions}
                 branches={branches}
                 onOpenRecordPayment={() => setIsPaymentModalOpen(true)}
               />
@@ -392,8 +486,8 @@ export default function App() {
             {/* Trainers Directory with Section 79 PT Tab */}
             {activeTab === 'trainers' && (
               <TrainerList
-                trainers={trainers}
-                ptSubscriptions={subscriptions}
+                trainers={scopedTrainers}
+                ptSubscriptions={scopedSubscriptions}
                 branches={branches}
                 onOpenSettlement={(trainerId) => setSettlementTrainerId(trainerId)}
               />
@@ -402,7 +496,7 @@ export default function App() {
             {/* Financial Ledger & Receipts */}
             {activeTab === 'payments' && (
               <PaymentLedgerView
-                transactions={transactions}
+                transactions={scopedTransactions}
                 branches={branches}
                 onOpenNewPayment={() => setIsPaymentModalOpen(true)}
                 onViewReceipt={(receipt) => setSelectedReceipt(receipt)}
@@ -412,9 +506,9 @@ export default function App() {
             {/* Biometrics & Attendance */}
             {activeTab === 'attendance' && (
               <AttendanceView
-                attendanceRecords={attendance}
-                trainees={trainees}
-                trainers={trainers}
+                attendanceRecords={scopedAttendance}
+                trainees={scopedTrainees}
+                trainers={scopedTrainers}
                 branches={branches}
               />
             )}
@@ -422,7 +516,7 @@ export default function App() {
             {/* Enquiries & Lead Pipeline */}
             {activeTab === 'enquiries' && (
               <EnquiriesView
-                enquiries={enquiries}
+                enquiries={scopedEnquiries}
                 branches={branches}
                 onConvertToTrainee={handleConvertToTrainee}
               />
@@ -431,8 +525,8 @@ export default function App() {
             {/* Expenses & Equipment */}
             {activeTab === 'expenses' && (
               <ExpensesView
-                expenses={expenses}
-                equipment={equipment}
+                expenses={scopedExpenses}
+                equipment={scopedEquipment}
                 branches={branches}
               />
             )}
@@ -440,16 +534,16 @@ export default function App() {
             {/* Combined Revenue Audit (Section 73 & 74) */}
             {activeTab === 'reports' && (
               <CombinedRevenueReport
-                transactions={transactions}
-                subscriptions={subscriptions}
-                trainers={trainers}
+                transactions={scopedTransactions}
+                subscriptions={scopedSubscriptions}
+                trainers={scopedTrainers}
                 branches={branches}
                 packages={packages}
               />
             )}
 
             {/* Audit Logs */}
-            {activeTab === 'audit' && <AuditLogView logs={auditLogs} />}
+            {activeTab === 'audit' && <AuditLogView logs={scopedAuditLogs} />}
 
             {/* Settings */}
             {activeTab === 'settings' && (
@@ -458,6 +552,7 @@ export default function App() {
                 currentTheme={theme}
                 onToggleTheme={handleToggleTheme}
                 currentUser={currentUserAccount}
+                isAdmin={currentRole === 'admin'}
               />
             )}
           </div>
@@ -470,7 +565,7 @@ export default function App() {
       <PaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => setIsPaymentModalOpen(false)}
-        trainees={trainees}
+        trainees={scopedTrainees}
         packages={packages}
         branches={branches}
         onPaymentSuccess={handlePaymentSuccess}
@@ -493,7 +588,7 @@ export default function App() {
       <PTCommissionSettlementModal
         isOpen={settlementTrainerId !== null}
         onClose={() => setSettlementTrainerId(null)}
-        trainers={trainers}
+        trainers={scopedTrainers}
         preselectedTrainerId={settlementTrainerId || undefined}
         onSettlementCreated={() => {
           setSettlementTrainerId(null);
@@ -505,9 +600,9 @@ export default function App() {
       <QuickBiometricModal
         isOpen={isQuickScanOpen}
         onClose={() => setIsQuickScanOpen(false)}
-        trainees={trainees}
-        trainers={trainers}
-        subscriptions={subscriptions}
+        trainees={scopedTrainees}
+        trainers={scopedTrainers}
+        subscriptions={scopedSubscriptions}
         onScanSuccess={reloadData}
       />
     </div>

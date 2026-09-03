@@ -1,12 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GitBranch, Shield, Clock, User, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { AuditLog } from '../../types';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod } from '../../utils/period';
 
 interface AuditLogViewProps {
   logs: AuditLog[];
 }
 
 export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
+  const visibleLogs = filterByPeriod<AuditLog>(logs, (l) => l.timestamp, period);
+
   return (
     <div className="space-y-5">
       {/* Banner */}
@@ -27,6 +32,11 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
         </span>
       </div>
 
+      {/* Period Filter */}
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
       {/* Log list */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <table className="w-full text-left text-xs text-slate-600">
@@ -40,7 +50,7 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {logs.map((log) => (
+            {visibleLogs.map((log) => (
               <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-4 py-3 font-mono text-slate-800 whitespace-nowrap">
                   {log.timestamp}
@@ -51,11 +61,11 @@ export const AuditLogView: React.FC<AuditLogViewProps> = ({ logs }) => {
                   </span>
                 </td>
                 <td className="px-4 py-3 font-semibold text-slate-900 capitalize">
-                  {log.entityType} ({log.entityId})
+                  {log.entity} ({log.entityId})
                 </td>
                 <td className="px-4 py-3 text-slate-700">
-                  <div className="font-semibold">{log.performedBy}</div>
-                  <div className="text-[10px] text-slate-400 capitalize">{log.role}</div>
+                  <div className="font-semibold">{log.userName}</div>
+                  <div className="text-[10px] text-slate-400 capitalize">{log.userRole}</div>
                 </td>
                 <td className="px-4 py-3 text-slate-600 max-w-[300px]">
                   {log.details}

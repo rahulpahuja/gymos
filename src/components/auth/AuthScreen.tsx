@@ -8,6 +8,7 @@ import {
   ArrowRight,
   AlertCircle,
   Users,
+  User,
 } from 'lucide-react';
 import { firebaseAuthService } from '../../services/firebase';
 import { Branch, UserRole } from '../../types';
@@ -84,11 +85,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ branches, onDemoLogin })
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
               Sign-Up Access Role
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {[
                 { role: 'admin' as UserRole, label: 'Super Admin', icon: Shield },
                 { role: 'manager' as UserRole, label: 'Branch Mgr', icon: Building2 },
                 { role: 'trainer' as UserRole, label: 'PT Coach', icon: Users },
+                { role: 'trainee' as UserRole, label: 'Member', icon: User },
               ].map((item) => {
                 const Icon = item.icon;
                 const isSelected = selectedRole === item.role;

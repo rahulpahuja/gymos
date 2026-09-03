@@ -15,6 +15,8 @@ import { PaymentTransaction, Receipt, Branch, RefundRecord } from '../../types';
 import { storageService } from '../../services/storageService';
 import { RefundModal } from './RefundModal';
 import { PrintService } from '../../services/printService';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod } from '../../utils/period';
 
 interface PaymentLedgerViewProps {
   transactions: PaymentTransaction[];
@@ -32,12 +34,13 @@ export const PaymentLedgerView: React.FC<PaymentLedgerViewProps> = ({
   const [activeTab, setActiveTab] = useState<'transactions' | 'refunds'>('transactions');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
   const [isRefundModalOpen, setIsRefundModalOpen] = useState<boolean>(false);
   const [targetRefundTx, setTargetRefundTx] = useState<PaymentTransaction | null>(null);
 
   const refunds: RefundRecord[] = storageService.getRefunds();
 
-  const filteredTransactions = transactions.filter((tx) => {
+  const filteredTransactions = filterByPeriod<PaymentTransaction>(transactions, (tx) => tx.paymentDate, period).filter((tx) => {
     if (selectedBranchId !== 'all' && tx.branchId !== selectedBranchId) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -49,7 +52,7 @@ export const PaymentLedgerView: React.FC<PaymentLedgerViewProps> = ({
     return true;
   });
 
-  const filteredRefunds = refunds.filter((rf) => {
+  const filteredRefunds = filterByPeriod<RefundRecord>(refunds, (rf) => rf.refundDate, period).filter((rf) => {
     if (selectedBranchId !== 'all' && rf.branchId !== selectedBranchId) return false;
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -364,6 +367,11 @@ export const PaymentLedgerView: React.FC<PaymentLedgerViewProps> = ({
         </div>
       </div>
 
+      {/* Period Filter */}
+      <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm">
+        <PeriodFilter value={period} onChange={setPeriod} />
+      </div>
+
       {/* Tabs & Search Bar */}
       <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-2 w-full md:w-auto">
@@ -440,7 +448,7 @@ export const PaymentLedgerView: React.FC<PaymentLedgerViewProps> = ({
                   <tr key={tx.id} className="hover:bg-gray-50/80 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-mono text-gray-900 font-semibold">{tx.paymentDate}</div>
-                      <div className="text-[10px] text-gray-400">By {tx.collectedBy}</div>
+                      <div className="text-[10px] text-gray-400">By {tx.createdBy}</div>
                     </td>
 
                     <td className="px-4 py-3 font-mono font-bold text-indigo-700">

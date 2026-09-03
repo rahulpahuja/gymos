@@ -5,6 +5,11 @@ coverage/
 .DS_Store
 *.log
 
+# Lockfiles — bun.lock is the source of truth
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # Environment variables
 .env*
 !.env.example

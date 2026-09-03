@@ -275,8 +275,14 @@ export const firebaseAuthService = {
     );
   },
 
-  // Approve a pending user
-  async approveUser(userId: string, role: UserRole, branchId: string, approverName: string): Promise<void> {
+  // Approve a pending user (optionally linking a trainer/trainee operational record)
+  async approveUser(
+    userId: string,
+    role: UserRole,
+    branchId: string,
+    approverName: string,
+    links?: { linkedTrainerId?: string; linkedTraineeId?: string }
+  ): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       status: 'approved',
@@ -284,6 +290,8 @@ export const firebaseAuthService = {
       branchId,
       approvedBy: approverName,
       approvedAt: new Date().toISOString(),
+      linkedTrainerId: role === 'trainer' ? links?.linkedTrainerId || '' : '',
+      linkedTraineeId: role === 'trainee' ? links?.linkedTraineeId || '' : '',
     });
   },
 

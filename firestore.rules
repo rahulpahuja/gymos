@@ -26,12 +26,20 @@ service cloud.firestore {
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'));
     }
 
-    // Check if user is approved (admin, manager, or trainer)
+    // Check if user is approved (admin, manager, trainer, or trainee)
     function isApprovedUser() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         (isOwnerEmail() ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved'));
+    }
+
+    // Approved branch managers may review and approve staff (trainer / trainee) sign-ups
+    function isApprovedManager() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
     }
 
     // Users Collection
@@ -39,15 +47,16 @@ service cloud.firestore {
       // Authenticated users can read user records (required for staff directory & approval checks)
       allow read: if isAuthenticated();
       
-      // User can create their own profile on sign-up, or Admin can pre-authorize profiles
-      allow create: if isAuthenticated() && (isSelf(userId) || isAdmin());
-      
-      // Admins can approve/update any profile, or users can update their own non-role fields
+      // User can create their own profile on sign-up; admins & managers can pre-authorize profiles
+      allow create: if isAuthenticated() && (isSelf(userId) || isAdmin() || isApprovedManager());
+
+      // Admins & branch managers can approve/update profiles; users can update their own non-role fields
       allow update: if isAuthenticated() && (
-        isAdmin() || 
+        isAdmin() ||
+        isApprovedManager() ||
         (isSelf(userId) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'approvedBy', 'approvedAt'])))
       );
-      
+
       // Admins can delete users
       allow delete: if isAdmin();
     }

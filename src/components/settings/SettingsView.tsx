@@ -15,16 +15,21 @@ import {
   Monitor,
   Cloud,
   Loader2,
+  DatabaseBackup,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { Branch, UserAccount } from '../../types';
 import { storageService } from '../../services/storageService';
 import { firebaseAuthService } from '../../services/firebase';
+import { backupService, BackupEnvelope } from '../../services/backupService';
 
 interface SettingsViewProps {
   branches: Branch[];
   currentTheme?: 'light' | 'dark';
   onToggleTheme?: (theme: 'light' | 'dark') => void;
   currentUser?: UserAccount | null;
+  isAdmin?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -32,7 +37,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentTheme,
   onToggleTheme,
   currentUser,
+  isAdmin = false,
 }) => {
+  const [backupNote, setBackupNote] = useState<string | null>(null);
+  const backupInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as BackupEnvelope;
+        const { restored } = backupService.restoreBackup(parsed);
+        setBackupNote(`Restored ${restored.length} collections. Reloading…`);
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        setBackupNote(err instanceof Error ? err.message : 'Could not read backup file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => {
     return currentTheme || storageService.getThemePreference();
   });
@@ -251,6 +277,72 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Full Data Backup & Restore (Admin only) */}
+      {isAdmin && (
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm space-y-4 transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-slate-700 pb-3">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <DatabaseBackup className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                Full Data Backup &amp; Restore
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                Download a portable JSON snapshot of every GymOS collection, or restore from one. Administrator access only.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  backupService.downloadBackup();
+                  setBackupNote('Backup downloaded.');
+                }}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                Download Backup
+              </button>
+              <button
+                type="button"
+                onClick={() => backupInputRef.current?.click()}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                Restore
+              </button>
+              <input
+                ref={backupInputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleRestoreFile}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {backupService.summary().map((c) => (
+              <div
+                key={c.key}
+                className="p-2.5 rounded-lg bg-gray-50 dark:bg-slate-900/50 border border-gray-200 dark:border-slate-700 text-center"
+              >
+                <div className="text-lg font-black text-gray-900 dark:text-white">{c.count}</div>
+                <div className="text-[10px] text-gray-500 dark:text-slate-400 capitalize truncate">
+                  {c.label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {backupNote && (
+            <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              {backupNote}
+            </div>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSave} className="space-y-5">
         {/* Gym Legal & Receipt Config */}

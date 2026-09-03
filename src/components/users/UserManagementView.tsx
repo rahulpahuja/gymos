@@ -19,18 +19,35 @@ import {
   RefreshCw,
   ExternalLink,
 } from 'lucide-react';
-import { UserAccount, Branch, UserRole, UserApprovalStatus, CurrentUser } from '../../types';
+import { UserAccount, Branch, UserRole, UserApprovalStatus, CurrentUser, Trainer, Trainee } from '../../types';
 import { firebaseAuthService } from '../../services/firebase';
 
 interface UserManagementViewProps {
   branches: Branch[];
   currentUser: CurrentUser;
+  trainers?: Trainer[];
+  trainees?: Trainee[];
 }
+
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: 'admin', label: 'Super Admin' },
+  { value: 'manager', label: 'Branch Manager' },
+  { value: 'trainer', label: 'PT Trainer / Coach' },
+  { value: 'trainee', label: 'Member / Trainee' },
+];
 
 export const UserManagementView: React.FC<UserManagementViewProps> = ({
   branches,
   currentUser,
+  trainers = [],
+  trainees = [],
 }) => {
+  const isManagerOnly = currentUser.role === 'manager';
+  const assignableRoles = isManagerOnly
+    ? ROLE_OPTIONS.filter((r) => r.value === 'trainer' || r.value === 'trainee')
+    : ROLE_OPTIONS;
+  // Link a portal login to its operational record, keyed by user id
+  const [approvalLinks, setApprovalLinks] = useState<Record<string, string>>({});
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'all'>('pending');
@@ -96,12 +113,33 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
     return true;
   });
 
+  const suggestLink = (user: UserAccount, role: UserRole): string => {
+    const pool = role === 'trainer' ? trainers : role === 'trainee' ? trainees : [];
+    const match = pool.find(
+      (p) => p.email?.toLowerCase() === user.email?.toLowerCase(),
+    );
+    return match?.id || '';
+  };
+
   const handleApprove = async (user: UserAccount) => {
-    const finalRole = approvalRoles[user.id] || user.requestedRole || user.role || 'manager';
-    const finalBranch = approvalBranches[user.id] || user.requestedBranchId || user.branchId || 'branch-1';
+    let finalRole = approvalRoles[user.id] || user.requestedRole || user.role || 'manager';
+    if (isManagerOnly && (finalRole === 'admin' || finalRole === 'manager')) {
+      finalRole = 'trainer';
+    }
+    const finalBranch = isManagerOnly
+      ? currentUser.branchId
+      : approvalBranches[user.id] || user.requestedBranchId || user.branchId || 'branch-1';
+
+    const linkId = approvalLinks[user.id] ?? suggestLink(user, finalRole);
+    const links =
+      finalRole === 'trainer'
+        ? { linkedTrainerId: linkId }
+        : finalRole === 'trainee'
+        ? { linkedTraineeId: linkId }
+        : undefined;
 
     try {
-      await firebaseAuthService.approveUser(user.id, finalRole, finalBranch, currentUser.name);
+      await firebaseAuthService.approveUser(user.id, finalRole, finalBranch, currentUser.name, links);
       showToast(`User ${user.displayName || user.email} approved as ${finalRole.toUpperCase()}`);
     } catch (err) {
       console.error('Approval failed:', err);
@@ -482,13 +520,15 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                       }
                       className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 bg-slate-50 outline-none cursor-pointer"
                     >
-                      <option value="admin">Super Admin</option>
-                      <option value="manager">Branch Manager</option>
-                      <option value="trainer">PT Trainer / Coach</option>
+                      {assignableRoles.map((r) => (
+                        <option key={r.value} value={r.value}>
+                          {r.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
-                  {currentSelectedRole !== 'admin' && (
+                  {currentSelectedRole !== 'admin' && !isManagerOnly && (
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] uppercase font-bold text-slate-400">
                         Assign Branch
@@ -506,6 +546,28 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                         {branches.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {(currentSelectedRole === 'trainer' || currentSelectedRole === 'trainee') && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] uppercase font-bold text-slate-400">
+                        Link {currentSelectedRole === 'trainer' ? 'Trainer' : 'Member'} Record
+                      </span>
+                      <select
+                        value={approvalLinks[user.id] ?? suggestLink(user, currentSelectedRole)}
+                        onChange={(e) =>
+                          setApprovalLinks((prev) => ({ ...prev, [user.id]: e.target.value }))
+                        }
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-800 bg-slate-50 outline-none cursor-pointer max-w-[180px]"
+                      >
+                        <option value="">— Not linked yet —</option>
+                        {(currentSelectedRole === 'trainer' ? trainers : trainees).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.fullName}
                           </option>
                         ))}
                       </select>
@@ -689,9 +751,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                     onChange={(e) => setPreAuthRole(e.target.value as UserRole)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 outline-none cursor-pointer"
                   >
-                    <option value="admin">Super Admin</option>
-                    <option value="manager">Branch Manager</option>
-                    <option value="trainer">PT Trainer</option>
+                    {assignableRoles.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -760,9 +824,11 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
                   onChange={(e) => setEditRole(e.target.value as UserRole)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-900 outline-none cursor-pointer"
                 >
-                  <option value="admin">Super Admin (Cross-Branch)</option>
-                  <option value="manager">Branch Manager</option>
-                  <option value="trainer">PT Trainer / Coach</option>
+                  {assignableRoles.map((r) => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 

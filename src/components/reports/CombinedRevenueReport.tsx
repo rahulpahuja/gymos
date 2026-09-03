@@ -21,6 +21,8 @@ import {
   PTPackage,
 } from '../../types';
 import { PrintService } from '../../services/printService';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod, periodLabel } from '../../utils/period';
 
 interface CombinedRevenueReportProps {
   transactions: PaymentTransaction[];
@@ -38,13 +40,16 @@ export const CombinedRevenueReport: React.FC<CombinedRevenueReportProps> = ({
   packages,
 }) => {
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
   const [expandedBranch, setExpandedBranch] = useState<string | null>('branch-1');
 
   // Aggregations
-  const filteredTxs = transactions.filter((t) =>
+  const periodTxs = filterByPeriod<PaymentTransaction>(transactions, (t) => t.paymentDate, period);
+  const periodSubs = filterByPeriod<PTSubscription>(subscriptions, (s) => s.startDate, period);
+  const filteredTxs = periodTxs.filter((t) =>
     selectedBranchId === 'all' ? true : t.branchId === selectedBranchId
   );
-  const filteredSubs = subscriptions.filter((s) =>
+  const filteredSubs = periodSubs.filter((s) =>
     selectedBranchId === 'all' ? true : s.branchId === selectedBranchId
   );
 
@@ -110,7 +115,7 @@ export const CombinedRevenueReport: React.FC<CombinedRevenueReportProps> = ({
       title: 'Combined Revenue & Segregated Financial Audit',
       subtitle: 'Mandatory Segregation Audit (Sections 60, 70, 73 & 74)',
       branchName,
-      dateRange: `Audited MTD (${new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })})`,
+      dateRange: `Period: ${periodLabel(period)}`,
       kpis: [
         {
           label: 'General Membership',
@@ -274,18 +279,21 @@ export const CombinedRevenueReport: React.FC<CombinedRevenueReportProps> = ({
             </p>
           </div>
 
-          <select
-            value={selectedBranchId}
-            onChange={(e) => setSelectedBranchId(e.target.value)}
-            className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 print:hidden"
-          >
-            <option value="all">Consolidated (All Branches)</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
+            <PeriodFilter value={period} onChange={setPeriod} />
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+            >
+              <option value="all">Consolidated (All Branches)</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* 5-Column Ledger Breakdown */}

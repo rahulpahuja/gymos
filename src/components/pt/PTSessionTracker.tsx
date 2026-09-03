@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { PTSession, PTSubscription, Trainer, Trainee, Branch, PTSessionStatus } from '../../types';
 import { storageService } from '../../services/storageService';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod } from '../../utils/period';
 
 interface PTSessionTrackerProps {
   sessions: PTSession[];
@@ -31,6 +33,7 @@ export const PTSessionTracker: React.FC<PTSessionTrackerProps> = ({
 }) => {
   const [selectedTrainerId, setSelectedTrainerId] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState<boolean>(false);
 
   // Scheduling state
@@ -47,7 +50,7 @@ export const PTSessionTracker: React.FC<PTSessionTrackerProps> = ({
   const cancelled = sessions.filter((s) => s.status === 'cancelled').length;
   const noShow = sessions.filter((s) => s.status === 'no_show').length;
 
-  const filteredSessions = sessions.filter((s) => {
+  const filteredSessions = filterByPeriod<PTSession>(sessions, (s) => s.scheduledDate, period).filter((s) => {
     if (selectedTrainerId !== 'all' && s.trainerId !== selectedTrainerId) return false;
     if (selectedStatus !== 'all' && s.status !== selectedStatus) return false;
     return true;
@@ -152,6 +155,8 @@ export const PTSessionTracker: React.FC<PTSessionTrackerProps> = ({
             <option value="no_show">No Show</option>
             <option value="cancelled">Cancelled</option>
           </select>
+
+          <PeriodFilter value={period} onChange={setPeriod} />
         </div>
 
         <button

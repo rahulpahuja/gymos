@@ -1,5 +1,8 @@
-export type UserRole = 'admin' | 'manager' | 'trainer';
+export type UserRole = 'admin' | 'manager' | 'trainer' | 'trainee';
 export type UserApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+/** Roles that see a personal self-service portal instead of the operations console. */
+export const PORTAL_ROLES: UserRole[] = ['trainer', 'trainee'];
 
 export interface UserAccount {
   id: string; // Firebase UID
@@ -17,6 +20,9 @@ export interface UserAccount {
   createdAt: string;
   lastLoginAt?: string;
   themePreference?: 'light' | 'dark';
+  // Self-service portal linkage: ties a login to an operational record
+  linkedTrainerId?: string;
+  linkedTraineeId?: string;
 }
 
 export interface CurrentUser {
@@ -28,6 +34,8 @@ export interface CurrentUser {
   photoURL?: string;
   status?: UserApprovalStatus;
   themePreference?: 'light' | 'dark';
+  linkedTrainerId?: string;
+  linkedTraineeId?: string;
 }
 
 export interface Branch {

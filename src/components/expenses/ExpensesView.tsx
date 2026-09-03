@@ -11,6 +11,8 @@ import {
 } from 'lucide-react';
 import { GymExpense, GymEquipment, Branch } from '../../types';
 import { storageService } from '../../services/storageService';
+import { PeriodFilter } from '../common/PeriodFilter';
+import { PeriodState, defaultPeriod, filterByPeriod } from '../../utils/period';
 
 interface ExpensesViewProps {
   expenses: GymExpense[];
@@ -25,6 +27,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'expenses' | 'equipment'>('expenses');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all');
+  const [period, setPeriod] = useState<PeriodState>(defaultPeriod('all'));
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState<boolean>(false);
 
   // Form state
@@ -33,7 +36,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
   const [description, setDescription] = useState<string>('');
   const [branchId, setBranchId] = useState<string>('branch-1');
 
-  const filteredExpenses = expenses.filter((e) =>
+  const filteredExpenses = filterByPeriod<GymExpense>(expenses, (e) => e.date, period).filter((e) =>
     selectedBranchId === 'all' ? true : e.branchId === selectedBranchId
   );
   const filteredEquipment = equipment.filter((eq) =>
@@ -109,18 +112,21 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({
           </button>
         </div>
 
-        <select
-          value={selectedBranchId}
-          onChange={(e) => setSelectedBranchId(e.target.value)}
-          className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
-        >
-          <option value="all">All Branches</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} />
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value)}
+            className="px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700"
+          >
+            <option value="all">All Branches</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Tab 1: Expenses Table */}
