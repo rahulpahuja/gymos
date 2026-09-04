@@ -495,3 +495,18 @@ export interface AuditLog {
   branchId: string;
   details: string;
 }
+
+export interface BiometricBridgeConfig {
+  bridgeUrl: string;
+  deviceModel: string;
+  autoTurnstile: boolean;
+}
+
+export interface BiometricEnrollment {
+  personId: string;
+  personName: string;
+  personType: 'trainee' | 'trainer';
+  templateId: string;
+  confidenceScore: number;
+  enrolledAt: string;
+}

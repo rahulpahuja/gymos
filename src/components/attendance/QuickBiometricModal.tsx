@@ -41,6 +41,8 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
   const [scanMessage, setScanMessage] = useState<string>('');
   const [confidenceScore, setConfidenceScore] = useState<number>(0);
 
+  const deviceStatus = biometricBridge.getDeviceStatus();
+
   if (!isOpen) return null;
 
   const currentTrainee = trainees.find((t) => t.id === selectedPersonId);
@@ -154,7 +156,7 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
               <h3 className="font-bold text-gray-900 text-sm md:text-base">
                 Hardware Biometric Check-In
               </h3>
-              <p className="text-xs text-gray-500">SecuGen Hamster Pro 20 • Bridge Active</p>
+              <p className="text-xs text-gray-500">{deviceStatus.model} • Bridge Active</p>
             </div>
           </div>
           <button
@@ -184,7 +186,7 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
 
             <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span>USB Bridge Connected (ws://127.0.0.1:8088)</span>
+              <span>USB Bridge Connected ({deviceStatus.port})</span>
             </div>
 
             {confidenceScore > 0 && scanStatus === 'success' && (

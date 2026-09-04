@@ -24,6 +24,8 @@ import {
   Enquiry,
   MembershipPlan,
   RefundRecord,
+  BiometricBridgeConfig,
+  BiometricEnrollment,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -45,6 +47,14 @@ const STORAGE_KEYS = {
   ENQUIRIES: 'gymos_enquiries_v1',
   MEMBERSHIP_PLANS: 'gymos_membership_plans_v1',
   AUDIT_LOGS: 'gymos_audit_logs_v1',
+  BIOMETRIC_CONFIG: 'gymos_biometric_config_v1',
+  BIOMETRIC_ENROLLMENTS: 'gymos_biometric_enrollments_v1',
+};
+
+export const DEFAULT_BIOMETRIC_CONFIG: BiometricBridgeConfig = {
+  bridgeUrl: 'ws://127.0.0.1:8088/biometric-bridge',
+  deviceModel: 'SecuGen Hamster Pro 20',
+  autoTurnstile: true,
 };
 
 // Default seed data
@@ -1334,6 +1344,41 @@ class StorageService {
   public setThemePreference(theme: 'light' | 'dark') {
     localStorage.setItem('fitos_theme', theme);
     this.notify('theme');
+  }
+
+  // --- Biometric Bridge Configuration ---
+  public getBiometricConfig(): BiometricBridgeConfig {
+    return {
+      ...DEFAULT_BIOMETRIC_CONFIG,
+      ...this.getItem<Partial<BiometricBridgeConfig>>(STORAGE_KEYS.BIOMETRIC_CONFIG, {}),
+    };
+  }
+
+  public saveBiometricConfig(config: BiometricBridgeConfig) {
+    this.setItem(STORAGE_KEYS.BIOMETRIC_CONFIG, config);
+  }
+
+  // --- Biometric Fingerprint Enrollments ---
+  public getBiometricEnrollments(): BiometricEnrollment[] {
+    return this.getItem<BiometricEnrollment[]>(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, []);
+  }
+
+  public saveBiometricEnrollment(entry: BiometricEnrollment) {
+    const list = this.getBiometricEnrollments();
+    const idx = list.findIndex((e) => e.personId === entry.personId);
+    if (idx >= 0) {
+      list[idx] = entry;
+    } else {
+      list.push(entry);
+    }
+    this.setItem(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, list);
+  }
+
+  public deleteBiometricEnrollment(personId: string) {
+    this.setItem(
+      STORAGE_KEYS.BIOMETRIC_ENROLLMENTS,
+      this.getBiometricEnrollments().filter((e) => e.personId !== personId)
+    );
   }
 
   // --- Branches ---

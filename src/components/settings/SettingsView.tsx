@@ -18,9 +18,14 @@ import {
   DatabaseBackup,
   Download,
   Upload,
+  PlugZap,
+  UserPlus,
+  Trash2,
+  AlertCircle,
 } from 'lucide-react';
-import { Branch, UserAccount } from '../../types';
+import { Branch, UserAccount, BiometricEnrollment } from '../../types';
 import { storageService } from '../../services/storageService';
+import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
 import { backupService, BackupEnvelope } from '../../services/backupService';
 
@@ -109,10 +114,84 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [defaultBranchSplit, setDefaultBranchSplit] = useState<number>(40);
   const [defaultRefundPolicy, setDefaultRefundPolicy] = useState<string>('proportional');
 
-  // Hardware Bridge Settings
-  const [bridgeHost, setBridgeHost] = useState<string>('127.0.0.1:8088');
-  const [deviceModel, setDeviceModel] = useState<string>('SecuGen Hamster Pro 20');
-  const [autoCheckInTurnstile, setAutoCheckInTurnstile] = useState<boolean>(true);
+  // Hardware Bridge Settings (persisted via storageService + biometricBridge)
+  const [bioConfig] = useState(() => storageService.getBiometricConfig());
+  const [bridgeUrl, setBridgeUrl] = useState<string>(bioConfig.bridgeUrl);
+  const [deviceModel, setDeviceModel] = useState<string>(bioConfig.deviceModel);
+  const [autoCheckInTurnstile, setAutoCheckInTurnstile] = useState<boolean>(bioConfig.autoTurnstile);
+
+  // Biometric bridge connection test
+  const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+  const [connMsg, setConnMsg] = useState<string>('');
+
+  // Fingerprint enrollment
+  const [trainees] = useState(() => storageService.getTrainees());
+  const [trainers] = useState(() => storageService.getTrainers());
+  const [enrollments, setEnrollments] = useState<BiometricEnrollment[]>(() =>
+    storageService.getBiometricEnrollments()
+  );
+  const [enrollType, setEnrollType] = useState<'trainee' | 'trainer'>('trainee');
+  const [enrollPersonId, setEnrollPersonId] = useState<string>('');
+  const [enrollStatus, setEnrollStatus] = useState<'idle' | 'capturing' | 'success' | 'error'>('idle');
+  const [enrollMsg, setEnrollMsg] = useState<string>('');
+
+  const enrollPeople = enrollType === 'trainee' ? trainees : trainers;
+
+  const persistBiometricConfig = () => {
+    biometricBridge.configure({
+      bridgeUrl: bridgeUrl.trim(),
+      deviceModel: deviceModel.trim(),
+      autoTurnstile: autoCheckInTurnstile,
+    });
+  };
+
+  const handleTestConnection = async () => {
+    persistBiometricConfig();
+    setConnStatus('connecting');
+    setConnMsg('Opening bridge connection…');
+    const ok = await biometricBridge.connect();
+    const status = biometricBridge.getDeviceStatus();
+    if (ok) {
+      setConnStatus('connected');
+      setConnMsg(`Connected to ${status.model} on ${status.port} (firmware ${status.firmware}).`);
+    } else {
+      setConnStatus('error');
+      setConnMsg(`Could not open ${status.port}. Bridge URL must be a valid ws:// or wss:// address.`);
+    }
+  };
+
+  const handleEnrollFingerprint = async () => {
+    const person = enrollPeople.find((p) => p.id === enrollPersonId);
+    if (!person) {
+      setEnrollStatus('error');
+      setEnrollMsg('Select a person to enrol first.');
+      return;
+    }
+    setEnrollStatus('capturing');
+    setEnrollMsg(`Place ${person.fullName}'s finger on the optical sensor…`);
+    const result = await biometricBridge.enrollFingerprint({
+      id: person.id,
+      name: person.fullName,
+      type: enrollType,
+    });
+    if (result.success) {
+      storageService.saveBiometricEnrollment(buildEnrollment(
+        { id: person.id, name: person.fullName, type: enrollType },
+        result
+      ));
+      setEnrollments(storageService.getBiometricEnrollments());
+      setEnrollStatus('success');
+      setEnrollMsg(`Saved fingerprint for ${person.fullName} (${result.confidenceScore}% quality).`);
+    } else {
+      setEnrollStatus('error');
+      setEnrollMsg(result.error || 'Capture failed. Reposition the finger and retry.');
+    }
+  };
+
+  const handleRemoveEnrollment = (personId: string) => {
+    storageService.deleteBiometricEnrollment(personId);
+    setEnrollments(storageService.getBiometricEnrollments());
+  };
 
   // New Branch Modal
   const [isAddBranchOpen, setIsAddBranchOpen] = useState<boolean>(false);
@@ -125,6 +204,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    persistBiometricConfig();
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -469,8 +549,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <label className="block text-gray-700 font-bold mb-1">Local Bridge Service URL</label>
               <input
                 type="text"
-                value={bridgeHost}
-                onChange={(e) => setBridgeHost(e.target.value)}
+                value={bridgeUrl}
+                onChange={(e) => setBridgeUrl(e.target.value)}
+                placeholder="ws://127.0.0.1:8088/biometric-bridge"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-gray-900"
               />
             </div>
@@ -486,6 +567,136 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 Auto-trip turnstile barrier pulse on valid biometric match score (&gt;80%)
               </label>
             </div>
+          </div>
+
+          {/* Open / Test the bridge connection */}
+          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={connStatus === 'connecting'}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 mt-3"
+            >
+              {connStatus === 'connecting' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <PlugZap className="w-3.5 h-3.5" />
+              )}
+              {connStatus === 'connecting' ? 'Opening…' : 'Open / Test Connection'}
+            </button>
+            {connMsg && (
+              <span
+                className={`text-xs font-semibold flex items-center gap-1.5 mt-3 ${
+                  connStatus === 'connected'
+                    ? 'text-emerald-600'
+                    : connStatus === 'error'
+                    ? 'text-rose-600'
+                    : 'text-gray-500'
+                }`}
+              >
+                {connStatus === 'connected' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : connStatus === 'error' ? (
+                  <AlertCircle className="w-3.5 h-3.5" />
+                ) : null}
+                {connMsg}
+              </span>
+            )}
+          </div>
+
+          {/* Fingerprint enrollment (Save a biometric per person) */}
+          <div className="pt-4 border-t border-gray-100 space-y-3">
+            <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+              <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+              Enrolled Fingerprints ({enrollments.length})
+            </h4>
+
+            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 text-xs items-end">
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">Role</label>
+                <select
+                  value={enrollType}
+                  onChange={(e) => {
+                    setEnrollType(e.target.value as 'trainee' | 'trainer');
+                    setEnrollPersonId('');
+                    setEnrollStatus('idle');
+                    setEnrollMsg('');
+                  }}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800"
+                >
+                  <option value="trainee">Trainee</option>
+                  <option value="trainer">Trainer</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-gray-700 font-bold mb-1">Person</label>
+                <select
+                  value={enrollPersonId}
+                  onChange={(e) => setEnrollPersonId(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800"
+                >
+                  <option value="">Select {enrollType}…</option>
+                  {enrollPeople.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.fullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleEnrollFingerprint}
+                disabled={enrollStatus === 'capturing' || !enrollPersonId}
+                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
+              >
+                {enrollStatus === 'capturing' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Fingerprint className="w-3.5 h-3.5" />
+                )}
+                {enrollStatus === 'capturing' ? 'Capturing…' : 'Capture & Save Fingerprint'}
+              </button>
+            </div>
+
+            {enrollMsg && (
+              <div
+                className={`p-2.5 rounded-lg text-xs font-semibold ${
+                  enrollStatus === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : enrollStatus === 'error'
+                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                    : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                }`}
+              >
+                {enrollMsg}
+              </div>
+            )}
+
+            {enrollments.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {enrollments.map((en) => (
+                  <div
+                    key={en.personId}
+                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex justify-between items-start text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-gray-900">{en.personName}</div>
+                      <div className="text-gray-400 text-[11px] mt-0.5 font-mono">
+                        {en.personType} • {en.confidenceScore}% • {new Date(en.enrolledAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveEnrollment(en.personId)}
+                      className="p-1 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                      aria-label={`Remove fingerprint for ${en.personName}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
