@@ -23,7 +23,7 @@ import {
   Trash2,
   AlertCircle,
 } from 'lucide-react';
-import { Branch, UserAccount, BiometricEnrollment } from '../../types';
+import { Branch, UserAccount, BiometricEnrollment, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
 import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
@@ -31,6 +31,8 @@ import { backupService, BackupEnvelope } from '../../services/backupService';
 
 interface SettingsViewProps {
   branches: Branch[];
+  trainees?: Trainee[];
+  trainers?: Trainer[];
   currentTheme?: 'light' | 'dark';
   onToggleTheme?: (theme: 'light' | 'dark') => void;
   currentUser?: UserAccount | null;
@@ -39,6 +41,8 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
   branches,
+  trainees: traineesProp,
+  trainers: trainersProp,
   currentTheme,
   onToggleTheme,
   currentUser,
@@ -124,9 +128,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [connMsg, setConnMsg] = useState<string>('');
 
-  // Fingerprint enrollment
-  const [trainees] = useState(() => storageService.getTrainees());
-  const [trainers] = useState(() => storageService.getTrainers());
+  // Fingerprint enrollment — people are branch-scoped by the caller so this
+  // works identically for demo admin (all branches) and demo manager (one branch).
+  const [allTrainees] = useState(() => storageService.getTrainees());
+  const [allTrainers] = useState(() => storageService.getTrainers());
+  const trainees = traineesProp ?? allTrainees;
+  const trainers = trainersProp ?? allTrainers;
   const [enrollments, setEnrollments] = useState<BiometricEnrollment[]>(() =>
     storageService.getBiometricEnrollments()
   );

@@ -549,6 +549,8 @@ export default function App() {
             {activeTab === 'settings' && (
               <SettingsView
                 branches={branches}
+                trainees={scopedTrainees}
+                trainers={scopedTrainers}
                 currentTheme={theme}
                 onToggleTheme={handleToggleTheme}
                 currentUser={currentUserAccount}
