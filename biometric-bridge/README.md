@@ -5,7 +5,38 @@ terminal. It talks to the device directly over its native TCP protocol (port
 `4370`, via `pyzk`) and exposes a small local HTTP + Server-Sent-Events API that
 the gymos Settings page and attendance flow call.
 
-## Run it (on any machine that can reach the terminal on the LAN)
+## Set it up once, forget it (Windows, recommended)
+
+Requires Python already installed (same requirement EasyBio had — check with
+`python --version`). On the machine wired to the fingerprint terminal:
+
+```
+cd biometric-bridge
+install.bat
+```
+
+This one run (it'll ask for admin rights once, via a UAC prompt):
+- Installs the Python dependencies.
+- Generates the HTTPS certificate and **adds it to Windows' trusted root
+  store**, so Chrome/Edge stop showing the "not secure" warning entirely —
+  no per-browser click-through needed (see the security note below on why
+  this is safe).
+- Opens firewall port `8090` so other devices on the LAN can reach it.
+- Sets the bridge to **auto-start silently** on every login (a hidden
+  shortcut in the Startup folder — no visible console window).
+- Starts it immediately too.
+
+After that, nothing else to run manually, ever — reboot the PC and the bridge
+is already there. In gymos → Settings → Biometric Scanner & Turnstile Bridge,
+set the bridge URL to:
+
+```
+https://<this machine's LAN IP>:8090
+```
+
+Find that IP with `ipconfig`.
+
+### Manual run (any OS, or for troubleshooting)
 
 ```bash
 cd biometric-bridge
@@ -13,24 +44,15 @@ pip install -r requirements.txt
 ESSL_DEVICE_IP=192.168.1.201 ESSL_DEVICE_PORT=4370 python server.py
 ```
 
-It serves **HTTPS** on `0.0.0.0:8090`, using a self-signed certificate it
-generates once on first run and reuses after that (`bridge_cert.pem` /
-`bridge_key.pem`, gitignored — don't copy these between machines).
-
-**One-time step per browser/device**: open `https://<this machine's LAN
-IP>:8090/api/status` directly in a new tab first and click through the "not
-secure" warning to trust it. Skipping this makes gymos's own calls to the
-bridge silently fail with a generic network error — that's the browser
-blocking an untrusted cert, not a bug in the bridge or in gymos.
-
-Then in gymos → Settings → Biometric Scanner & Turnstile Bridge, set the
-bridge URL to:
-
-```
-https://<this machine's LAN IP>:8090
-```
-
-Find that IP with `ipconfig` (Windows) or `ifconfig`/`ip addr` (Linux/Mac).
+or double-click `start-bridge.bat` on Windows — this shows a console window
+so you can see errors, but doesn't set up trust/firewall/auto-start for you.
+It serves HTTPS using the same self-signed cert (generated once, reused after
+that — `bridge_cert.pem`/`bridge_key.pem`, gitignored, don't copy between
+machines). Without running `install.bat`, each browser/device needs one
+manual step: open `https://<this machine's LAN IP>:8090/api/status` directly
+in a new tab and click through the "not secure" warning once. Skipping this
+makes gymos's own calls to the bridge silently fail with a generic network
+error — that's the browser blocking an untrusted cert, not a bug.
 
 Environment variables (all optional, shown with defaults):
 
@@ -78,9 +100,23 @@ connection at a time).
 ## Browser HTTPS trust note
 
 Because the bridge serves HTTPS with a self-signed cert (not one signed by a
-public authority), browsers won't trust it automatically. This is a real
-security boundary — no code here can bypass it. The fix is the one-time step
-above: visit the bridge's own URL directly once per browser/device and accept
-the certificate, before gymos tries to call it via `fetch()`. After that, it
-works from gymos regardless of whether gymos itself is loaded over http or
-https.
+public authority), browsers won't trust it automatically — that's a real
+security boundary, no code can bypass it silently. `install.bat` resolves this
+properly instead of routing around it: it adds *this specific* certificate to
+Windows' trusted root store, so Chrome/Edge (which read that store) trust
+exactly this one keypair — not a general-purpose CA that could sign other
+certs, just this one bridge's identity. That's the standard, safe way to do
+this for a local-only HTTPS service (the same approach tools like `mkcert`
+use). Firefox keeps its own separate certificate store, so it would still
+show a one-time warning even after `install.bat` — not a bridge limitation,
+just how Firefox works.
+
+## One thing `install.bat` can't do for you
+
+If EasyBio's old server is still set to auto-start (Startup folder, Task
+Scheduler, or a Windows service), it'll compete with this bridge for the
+device's single connection on the next reboot. `install.bat` only sets *this*
+bridge to auto-start — it doesn't know how EasyBio was configured to launch,
+so disabling that is still a manual one-time check (Task Manager → find it →
+trace back to what's relaunching it, as covered earlier in the setup
+conversation).

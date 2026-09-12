@@ -637,8 +637,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </a>
           </div>
           <p className="text-[11px] text-gray-400 -mt-2">
-            Unzip on the PC connected to the fingerprint terminal, then run <code>start-bridge.bat</code> (Windows) —
-            see the included README for setup.
+            Unzip on the PC connected to the fingerprint terminal, then run <code>install.bat</code> (Windows) once —
+            it sets everything up (certificate, firewall, silent auto-start on login) so nothing needs running by
+            hand afterward. See the included README for details.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
