@@ -65,18 +65,26 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
   const upcomingSessions = sessions.filter((s) => s.status === 'scheduled').length;
   const cancelledSessions = sessions.filter((s) => s.status === 'cancelled').length;
   const noShowSessions = sessions.filter((s) => s.status === 'no_show').length;
-  const totalTargetSessions = sessions.length || 56;
-  const sessionCompletionPct = Math.min(100, Math.round(((completedSessions || 42) / (totalTargetSessions || 56)) * 100));
+  const totalTargetSessions = sessions.length;
+  const sessionCompletionPct =
+    totalTargetSessions > 0 ? Math.min(100, Math.round((completedSessions / totalTargetSessions) * 100)) : 0;
 
-  // Chart Data: Monthly Revenue Split Trend
-  const monthlyRevenueData = [
-    { month: 'Apr', ptGross: 65000, trainerShare: 39000, branchShare: 26000 },
-    { month: 'May', ptGross: 78000, trainerShare: 46800, branchShare: 31200 },
-    { month: 'Jun', ptGross: 85000, trainerShare: 51000, branchShare: 34000 },
-    { month: 'Jul', ptGross: 92000, trainerShare: 55200, branchShare: 36800 },
-    { month: 'Aug', ptGross: 110000, trainerShare: 66000, branchShare: 44000 },
-    { month: 'Sep (MTD)', ptGross: grossPTRevenue || 245000, trainerShare: totalTrainerCommissionEarned || 147000, branchShare: branchRetainedShare || 98000 },
-  ];
+  // Chart Data: real monthly revenue split trend for the last 6 months (no
+  // data for a month = 0, not a fabricated placeholder).
+  const now = new Date();
+  const monthlyRevenueData = Array.from({ length: 6 }, (_, idx) => {
+    const offset = 5 - idx;
+    const target = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const monthSubs = subscriptions.filter((s) => {
+      const d = new Date(s.startDate);
+      return d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth();
+    });
+    const ptGross = monthSubs.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
+    const trainerShare = monthSubs.reduce((sum, s) => sum + (s.trainerCommissionTotal || s.trainerShare || 0), 0);
+    const branchShare = Math.max(0, ptGross - trainerShare);
+    const label = target.toLocaleString('en-US', { month: 'short' }) + (offset === 0 ? ' (MTD)' : '');
+    return { month: label, ptGross, trainerShare, branchShare };
+  });
 
   // Chart Data: Sessions Delivered by Trainer
   const trainerSessionData = trainers.map((t) => {
@@ -107,7 +115,7 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
           </span>
           <div className="flex items-end justify-between mt-3">
             <span className="text-2xl font-bold text-gray-900">
-              ₹{(grossPTRevenue || 245000).toLocaleString('en-IN')}
+              ₹{grossPTRevenue.toLocaleString('en-IN')}
             </span>
             <span className="text-green-600 text-xs font-bold flex items-center">
               <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> +12.5%
@@ -125,12 +133,12 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
           </span>
           <div className="flex items-end justify-between mt-3">
             <span className="text-2xl font-bold text-indigo-600">
-              ₹{(totalTrainerCommissionEarned || 147000).toLocaleString('en-IN')}
+              ₹{totalTrainerCommissionEarned.toLocaleString('en-IN')}
             </span>
             <span className="text-gray-400 text-xs font-medium">60% Avg. Split</span>
           </div>
           <div className="text-[11px] text-gray-400 mt-1">
-            Paid: ₹{(totalTrainerCommissionPaid || 0).toLocaleString('en-IN')}
+            Paid: ₹{totalTrainerCommissionPaid.toLocaleString('en-IN')}
           </div>
         </div>
 
@@ -141,7 +149,7 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
           </span>
           <div className="flex items-end justify-between mt-3">
             <span className="text-2xl font-bold text-green-600">
-              ₹{(branchRetainedShare || 98000).toLocaleString('en-IN')}
+              ₹{branchRetainedShare.toLocaleString('en-IN')}
             </span>
             <span className="text-gray-400 text-xs font-medium">40% Retained</span>
           </div>
@@ -157,7 +165,7 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
           </span>
           <div className="flex items-end justify-between mt-3">
             <span className="text-2xl font-bold text-white">
-              {completedSessions || 42} / {totalTargetSessions || 56}
+              {completedSessions} / {totalTargetSessions}
             </span>
             <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden mb-1.5">
               <div
@@ -223,9 +231,9 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
                 {subscriptions.slice(0, 5).map((sub) => {
                   const trainerName = sub.trainerName || trainers.find((t) => t.id === sub.trainerId)?.fullName || 'Coach';
                   const isSettled = (sub.trainerCommissionPaid || 0) >= (sub.trainerCommissionTotal || sub.trainerCommissionEarned || 0);
-                  const pkgPrice = sub.packagePrice || sub.netPrice || 20000;
-                  const trainerCut = sub.trainerCommissionTotal || (pkgPrice * 0.6);
-                  const branchCut = sub.branchShare || (pkgPrice - trainerCut);
+                  const pkgPrice = sub.packagePrice || sub.netPrice || 0;
+                  const trainerCut = sub.trainerCommissionTotal ?? (pkgPrice * 0.6);
+                  const branchCut = sub.branchShare ?? (pkgPrice - trainerCut);
 
                   return (
                     <tr key={sub.id} className="hover:bg-gray-50/80 transition-colors">
@@ -311,13 +319,13 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
                         {trainer.fullName}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {activeCount || 12} Active Trainees
+                        {activeCount} Active Trainees
                       </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold text-indigo-600">
-                      ₹{(trainer.ptCommissionEarned || 32500).toLocaleString('en-IN')}
+                      ₹{(trainer.ptCommissionEarned || 0).toLocaleString('en-IN')}
                     </p>
                     <p className="text-[10px] text-gray-400 font-medium">Earned</p>
                   </div>
@@ -348,25 +356,25 @@ export const PTDashboardOverview: React.FC<PTDashboardOverviewProps> = ({
 
           <div className="grid grid-cols-2 gap-4 my-4">
             <div className="bg-indigo-700/50 p-3 rounded-lg border border-indigo-500/40">
-              <p className="text-2xl font-bold">{completedSessions || 852}</p>
+              <p className="text-2xl font-bold">{completedSessions}</p>
               <p className="text-[10px] uppercase font-bold text-indigo-200 mt-0.5">
                 Completed
               </p>
             </div>
             <div className="bg-indigo-700/50 p-3 rounded-lg border border-indigo-500/40">
-              <p className="text-2xl font-bold text-indigo-200">{cancelledSessions || 114}</p>
+              <p className="text-2xl font-bold text-indigo-200">{cancelledSessions}</p>
               <p className="text-[10px] uppercase font-bold text-indigo-200 mt-0.5">
                 Cancelled
               </p>
             </div>
             <div className="bg-indigo-700/50 p-3 rounded-lg border border-indigo-500/40">
-              <p className="text-2xl font-bold text-indigo-200">{noShowSessions || 42}</p>
+              <p className="text-2xl font-bold text-indigo-200">{noShowSessions}</p>
               <p className="text-[10px] uppercase font-bold text-indigo-200 mt-0.5">
                 No Show
               </p>
             </div>
             <div className="bg-indigo-700/50 p-3 rounded-lg border border-indigo-500/40">
-              <p className="text-2xl font-bold">{upcomingSessions || 245}</p>
+              <p className="text-2xl font-bold">{upcomingSessions}</p>
               <p className="text-[10px] uppercase font-bold text-indigo-200 mt-0.5">
                 Remaining
               </p>

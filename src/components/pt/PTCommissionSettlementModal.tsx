@@ -122,7 +122,7 @@ export const PTCommissionSettlementModal: React.FC<PTCommissionSettlementModalPr
               onChange={(e) => {
                 setTrainerId(e.target.value);
                 const t = trainers.find((tr) => tr.id === e.target.value);
-                if (t) setAmount(t.ptCommissionOutstanding || 4000);
+                if (t) setAmount(t.ptCommissionOutstanding ?? 0);
               }}
               className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm font-semibold"
             >

@@ -274,7 +274,7 @@ export const RefundModal: React.FC<RefundModalProps> = ({
                 <input
                   type="number"
                   min={1}
-                  max={currentTx?.totalAmount || 100000}
+                  max={currentTx?.totalAmount ?? 100000}
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(Number(e.target.value))}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs font-bold text-gray-900"

@@ -85,45 +85,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   );
   const totalGrossRevenue = totalGeneralRevenue + totalPTRevenue;
 
-  // 1. Dynamic Monthly Revenue Trend Data (Past 6 Months)
-  const revenueTrendData = [
-    { month: 'Apr', membership: 120000, pt: 65000, total: 185000 },
-    { month: 'May', membership: 135000, pt: 78000, total: 213000 },
-    { month: 'Jun', membership: 140000, pt: 85000, total: 225000 },
-    { month: 'Jul', membership: 155000, pt: 92000, total: 247000 },
-    { month: 'Aug', membership: 168000, pt: 110000, total: 278000 },
-    {
-      month: 'Sep (MTD)',
-      membership: totalGeneralRevenue || 175000,
-      pt: totalPTRevenue || 128000,
-      total: (totalGeneralRevenue || 175000) + (totalPTRevenue || 128000),
-    },
-  ];
+  // 1. Real monthly revenue trend for the last 6 months (no data for a month
+  // = 0, not a fabricated placeholder).
+  const now = new Date();
+  const revenueTrendData = Array.from({ length: 6 }, (_, idx) => {
+    const offset = 5 - idx;
+    const target = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const monthTx = transactions.filter((t) => {
+      const d = new Date(t.paymentDate);
+      return d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth();
+    });
+    const membership = monthTx.reduce((sum, t) => sum + (t.membershipAmount || t.allocation?.generalMembershipAmount || 0), 0);
+    const pt = monthTx.reduce((sum, t) => sum + (t.ptAmount || t.allocation?.ptAmount || 0), 0);
+    const label = target.toLocaleString('en-US', { month: 'short' }) + (offset === 0 ? ' (MTD)' : '');
+    return { month: label, membership, pt, total: membership + pt };
+  });
 
   // 2. PT vs General Membership Revenue & Retained Splits Data (Pie / Donut)
-  const membershipRatio = totalGrossRevenue > 0 ? Math.round((totalGeneralRevenue / totalGrossRevenue) * 100) : 58;
-  const ptRatio = 100 - membershipRatio;
+  const membershipRatio = totalGrossRevenue > 0 ? Math.round((totalGeneralRevenue / totalGrossRevenue) * 100) : 0;
 
   const splitDonutData = [
     {
       name: 'General Gym Membership',
-      value: totalGeneralRevenue || 175000,
+      value: totalGeneralRevenue,
       color: '#3B82F6', // Blue
       share: `${membershipRatio}%`,
       subtitle: '100% Retained by Gym',
     },
     {
       name: 'Trainer PT Commission Share',
-      value: totalTrainerCommission || 72000,
+      value: totalTrainerCommission,
       color: '#8B5CF6', // Purple
-      share: `${totalGrossRevenue > 0 ? Math.round((totalTrainerCommission / totalGrossRevenue) * 100) : 24}%`,
+      share: `${totalGrossRevenue > 0 ? Math.round((totalTrainerCommission / totalGrossRevenue) * 100) : 0}%`,
       subtitle: 'Disbursed to Coaches',
     },
     {
       name: 'Gym Retained PT Share',
-      value: branchRetainedPT || 56000,
+      value: branchRetainedPT,
       color: '#10B981', // Emerald
-      share: `${totalGrossRevenue > 0 ? Math.round((branchRetainedPT / totalGrossRevenue) * 100) : 18}%`,
+      share: `${totalGrossRevenue > 0 ? Math.round((branchRetainedPT / totalGrossRevenue) * 100) : 0}%`,
       subtitle: 'Net Gym PT Retention',
     },
   ];
@@ -135,7 +135,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const revenueGen = t.ptRevenueGenerated || trainerSubs.reduce((sum, s) => sum + (s.paidAmount || 0), 0);
     const commEarned = t.ptCommissionEarned || trainerSubs.reduce((sum, s) => sum + (s.trainerCommissionEarned || 0), 0);
     const activeClients = trainerSubs.filter((s) => s.status === 'active').length;
-    const conductedCount = t.totalSessionsConducted || trainerSessions.length || 14;
+    const conductedCount = t.totalSessionsConducted || trainerSessions.length;
 
     return {
       name: t.fullName.split(' ')[0] || t.fullName,
