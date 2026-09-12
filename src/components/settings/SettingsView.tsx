@@ -622,10 +622,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         {/* Biometric Turnstile Hardware Bridge Settings (Sections 21, 22, 75) */}
         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-            <Fingerprint className="w-4 h-4 text-emerald-600" />
-            Biometric Scanner & Turnstile Bridge (Sections 21, 22, 75)
-          </h3>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <Fingerprint className="w-4 h-4 text-emerald-600" />
+              Biometric Scanner & Turnstile Bridge (Sections 21, 22, 75)
+            </h3>
+            <a
+              href="/biometric-bridge.zip"
+              download="biometric-bridge.zip"
+              className="px-3 py-1.5 bg-gray-900 hover:bg-black text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download Biometric Bridge (.zip)
+            </a>
+          </div>
+          <p className="text-[11px] text-gray-400 -mt-2">
+            Unzip on the PC connected to the fingerprint terminal, then run <code>start-bridge.bat</code> (Windows) —
+            see the included README for setup.
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
