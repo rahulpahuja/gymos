@@ -169,14 +169,25 @@ class FirestoreSyncService {
 
   // Deletes every document in every synced collection — used to clean up fake
   // seed data that seedEmptyCollections() previously pushed up for a real
-  // account before that was fixed. Does not touch local storage; the caller
-  // should also call storageService.clearOperationalData().
-  public async clearAllCollections(): Promise<{ cleared: string[]; errors: string[] }> {
+  // account before that was fixed.
+  //
+  // Stops the realtime listeners FIRST: while they're active, every
+  // intermediate deletion step fires an onSnapshot update, and the
+  // remote-\>local sync would re-write local storage with whatever partial
+  // data it still sees mid-deletion — clobbering the empty state right back
+  // with leftovers. The caller must reload the page after this (there is no
+  // in-session way to safely resume clean listeners against a database that
+  // was just bulk-edited out from under them).
+  public async clearAllCollections(): Promise<{ cleared: string[]; errors: string[]; counts: Record<string, number> }> {
+    this.stop();
+
     const cleared: string[] = [];
     const errors: string[] = [];
+    const counts: Record<string, number> = {};
     for (const col of COLLECTIONS) {
       try {
         const colRef = collection(db, col.firestore);
+        let deleted = 0;
         // Loop in case a collection holds more docs than one batch can delete.
         for (let guard = 0; guard < 20; guard++) {
           const snapshot = await getDocs(colRef);
@@ -184,16 +195,17 @@ class FirestoreSyncService {
           const batch = writeBatch(db);
           snapshot.docs.slice(0, 450).forEach((docSnap) => batch.delete(docSnap.ref));
           await batch.commit();
+          deleted += Math.min(snapshot.size, 450);
           if (snapshot.size <= 450) break;
         }
-        this.remoteIds.set(col.firestore, new Set());
+        counts[col.firestore] = deleted;
         cleared.push(col.firestore);
       } catch (error) {
         errors.push(col.firestore);
         console.warn(`[FirestoreSync] Failed to clear ${col.firestore}:`, error);
       }
     }
-    return { cleared, errors };
+    return { cleared, errors, counts };
   }
 
   // Save single entity to Firestore in background

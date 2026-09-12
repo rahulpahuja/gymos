@@ -79,15 +79,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setCleanupMsg('Clearing local data…');
     storageService.clearOperationalData();
 
-    setCleanupMsg('Clearing cloud data…');
+    setCleanupMsg('Clearing cloud data (this also stops live sync until you reload)…');
     const result = await firestoreSync.clearAllCollections();
 
     setCleanupBusy(false);
+    const countsText = Object.entries(result.counts)
+      .map(([name, n]) => `${name}: ${n}`)
+      .join(', ');
     if (result.errors.length) {
-      setCleanupMsg(`Cleared most collections, but failed on: ${result.errors.join(', ')}. Check console for details.`);
+      setCleanupMsg(
+        `Deleted (${countsText || 'nothing counted'}), but FAILED on: ${result.errors.join(', ')} — those still have their old data. Check the browser console for the exact error.`
+      );
     } else {
-      setCleanupMsg('Done — all sample data cleared locally and in the cloud. Reloading…');
-      setTimeout(() => window.location.reload(), 1500);
+      setCleanupMsg(`Deleted per collection — ${countsText || 'nothing to delete'}. Reloading…`);
+      setTimeout(() => window.location.reload(), 2000);
     }
   };
 
