@@ -109,7 +109,7 @@ export class FingerprintDeviceAdapter {
     );
   }
 
-  private async request<T>(path: string, init?: RequestInit, timeoutMs = 6000): Promise<T> {
+  private async request<T>(path: string, init?: RequestInit, timeoutMs = 10000): Promise<T> {
     if (!this.validUrl()) {
       throw new Error('Bridge URL must be a valid http:// or https:// address.');
     }
@@ -259,7 +259,7 @@ export class FingerprintDeviceAdapter {
       const data = await this.request<{ success: boolean; error?: string }>(
         '/api/force-open',
         { method: 'POST', body: JSON.stringify({ seconds }) },
-        6000
+        10000
       );
       return data;
     } catch (e) {
