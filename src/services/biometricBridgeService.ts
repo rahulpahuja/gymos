@@ -6,7 +6,7 @@
  * the browser directly — this is a thin client for that bridge's REST API.
  */
 
-import { BiometricBridgeConfig, BiometricEnrollment, BiometricPersonType, BiometricPunchEvent } from '../types';
+import { BiometricBridgeConfig, BiometricDeviceUser, BiometricEnrollment, BiometricPersonType, BiometricPunchEvent } from '../types';
 import { storageService, DEFAULT_BIOMETRIC_CONFIG } from './storageService';
 
 export interface BiometricScanResult {
@@ -319,6 +319,37 @@ export class FingerprintDeviceAdapter {
     }
   }
 
+  /** Lists every user already registered on the device, including ones enrolled
+   * before gymos existed (e.g. via EasyBio), with their gymos link status if any. */
+  async listDeviceUsers(): Promise<{ success: boolean; users: BiometricDeviceUser[]; error?: string }> {
+    try {
+      const data = await this.request<{ success: boolean; users?: BiometricDeviceUser[]; error?: string }>(
+        '/api/users',
+        undefined,
+        20000
+      );
+      return { success: data.success, users: data.users || [], error: data.error };
+    } catch (e) {
+      return { success: false, users: [], error: e instanceof Error ? e.message : 'Could not list device users.' };
+    }
+  }
+
+  /** Links an already-enrolled device user to a gymos person — no new fingerprint capture. */
+  async linkDeviceUser(person: { uid: string; id: string; name: string; type: BiometricPersonType }): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; error?: string }>(
+        '/api/link',
+        {
+          method: 'POST',
+          body: JSON.stringify({ uid: person.uid, personId: person.id, personName: person.name, personType: person.type }),
+        }
+      );
+      return data;
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Linking failed.' };
+    }
+  }
+
   /** Subscribes to real-time punch events from the bridge (SSE). Returns an unsubscribe function. */
   subscribeLive(onEvent: (event: BiometricPunchEvent) => void, onError?: (err: string) => void): () => void {
     if (!this.validUrl()) {
@@ -393,5 +424,7 @@ export function buildEnrollment(
     templateId: result.templateId || '',
     confidenceScore: result.confidenceScore || 100,
     enrolledAt: result.timestamp,
+    deviceUserId: result.deviceUserId,
+    status: 'active',
   };
 }

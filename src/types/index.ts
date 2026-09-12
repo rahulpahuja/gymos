@@ -511,6 +511,18 @@ export interface BiometricEnrollment {
   templateId: string;
   confidenceScore: number;
   enrolledAt: string;
+  deviceUserId?: string;
+  status: 'active' | 'disabled';
+}
+
+export interface BiometricDeviceUser {
+  uid: string;
+  deviceName: string;
+  deviceUserId: string;
+  linked: boolean;
+  personId: string | null;
+  personName: string | null;
+  personType: BiometricPersonType | null;
 }
 
 export interface BiometricPunchEvent {

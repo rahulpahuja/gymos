@@ -283,6 +283,63 @@ def delete_enrollment(person_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/users")
+def list_users():
+    """Lists every user already registered on the device (including ones enrolled
+    long before this bridge existed, e.g. via EasyBio), cross-referenced against
+    our own personId mapping so already-linked ones show who they belong to."""
+    def fn(conn):
+        return conn.get_users()
+
+    try:
+        users = with_device(fn, timeout=20)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 502
+
+    mapping = load_mapping()
+    by_uid = {str(v["uid"]): v for v in mapping.values()}
+    result = []
+    for u in users:
+        uid = str(u.uid)
+        linked = by_uid.get(uid)
+        result.append({
+            "uid": uid,
+            "deviceName": u.name,
+            "deviceUserId": str(u.user_id),
+            "linked": linked is not None,
+            "personId": linked.get("personId") if linked else None,
+            "personName": linked.get("personName") if linked else None,
+            "personType": linked.get("personType") if linked else None,
+        })
+    return jsonify({"success": True, "users": result, "count": len(result)})
+
+
+@app.route("/api/link", methods=["POST"])
+def link_user():
+    """Maps an EXISTING device user (already fingerprint-enrolled, e.g. from
+    EasyBio's history) to a gymos person — no device interaction, no new
+    fingerprint capture, just records which uid belongs to whom."""
+    body = request.get_json(force=True) or {}
+    uid = body.get("uid")
+    person_id = body.get("personId")
+    person_name = (body.get("personName") or "").strip()
+    person_type = body.get("personType", "trainee")
+    if not uid or not person_id or not person_name:
+        return jsonify({"success": False, "error": "uid, personId and personName are required"}), 400
+
+    mapping = load_mapping()
+    mapping[person_id] = {
+        "uid": int(uid),
+        "deviceUserId": str(uid),
+        "personId": person_id,
+        "personName": person_name,
+        "personType": person_type,
+        "enrolledAt": datetime.utcnow().isoformat(),
+    }
+    save_mapping(mapping)
+    return jsonify({"success": True})
+
+
 @app.route("/api/sync", methods=["POST"])
 def sync():
     def fn(conn):

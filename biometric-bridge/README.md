@@ -72,7 +72,15 @@ Environment variables (all optional, shown with defaults):
   while the person places the same finger on the sensor (up to 3 times) as the
   terminal prompts — that's the device's own enrollment flow, not something the
   bridge can skip.
-- `DELETE /api/enroll/<personId>` — removes the person from the device.
+- `DELETE /api/enroll/<personId>` — removes the person from the device entirely
+  (deletes their fingerprint template too).
+- `GET  /api/users` — lists every user already on the device, including ones
+  enrolled long before this bridge existed (e.g. via EasyBio's history), each
+  showing whether it's already linked to a gymos person.
+- `POST /api/link` — `{uid, personId, personName, personType}`. Links an
+  **already-enrolled** device user to a gymos person. No device interaction,
+  no new fingerprint capture — their template already exists on the device,
+  this just records who it belongs to.
 - `POST /api/sync` — pulls attendance logs from the device and returns any
   punches not already delivered (tracked in `state.json`), enriched with the
   person's name/type from `enrollments.json`.

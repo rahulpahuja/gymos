@@ -23,8 +23,13 @@ import {
   Trash2,
   AlertCircle,
   RefreshCw,
+  Ban,
+  ShieldCheck,
+  Users,
+  Search,
+  Link2,
 } from 'lucide-react';
-import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, Trainee, Trainer } from '../../types';
+import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, BiometricDeviceUser, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
 import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
@@ -150,12 +155,84 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [enrollStatus, setEnrollStatus] = useState<'idle' | 'capturing' | 'success' | 'error'>('idle');
   const [enrollMsg, setEnrollMsg] = useState<string>('');
 
-  const enrollPeople: { id: string; fullName: string }[] =
-    enrollType === 'trainee'
+  const getPeopleForType = (type: BiometricPersonType): { id: string; fullName: string }[] =>
+    type === 'trainee'
       ? trainees.map((t) => ({ id: t.id, fullName: t.fullName }))
-      : enrollType === 'trainer'
+      : type === 'trainer'
       ? trainers.map((t) => ({ id: t.id, fullName: t.fullName }))
       : staffMembers.map((s) => ({ id: s.id, fullName: s.displayName }));
+
+  const enrollPeople = getPeopleForType(enrollType);
+
+  // Existing device users (e.g. enrolled long ago via EasyBio) that can be
+  // linked to a gymos person, disabled, or removed — without needing a fresh
+  // fingerprint capture since their template already exists on the device.
+  const [deviceUsers, setDeviceUsers] = useState<BiometricDeviceUser[]>([]);
+  const [deviceUsersLoading, setDeviceUsersLoading] = useState(false);
+  const [deviceUsersMsg, setDeviceUsersMsg] = useState<string>('');
+  const [deviceUserSearch, setDeviceUserSearch] = useState('');
+  const [linkDrafts, setLinkDrafts] = useState<Record<string, { type: BiometricPersonType; personId: string }>>({});
+  const [linkBusyUid, setLinkBusyUid] = useState<string | null>(null);
+
+  const handleLoadDeviceUsers = async () => {
+    setDeviceUsersLoading(true);
+    setDeviceUsersMsg('');
+    const result = await biometricBridge.listDeviceUsers();
+    setDeviceUsersLoading(false);
+    if (result.success) {
+      setDeviceUsers(result.users);
+    } else {
+      setDeviceUsersMsg(result.error || 'Could not load device users.');
+    }
+  };
+
+  const handleLinkDeviceUser = async (uid: string) => {
+    const draft = linkDrafts[uid];
+    if (!draft?.personId) return;
+    const person = getPeopleForType(draft.type).find((p) => p.id === draft.personId);
+    if (!person) return;
+    setLinkBusyUid(uid);
+    const result = await biometricBridge.linkDeviceUser({ uid, id: person.id, name: person.fullName, type: draft.type });
+    if (result.success) {
+      storageService.saveBiometricEnrollment({
+        personId: person.id,
+        personName: person.fullName,
+        personType: draft.type,
+        templateId: `zk-uid-${uid}`,
+        confidenceScore: 100,
+        enrolledAt: new Date().toISOString(),
+        deviceUserId: uid,
+        status: 'active',
+      });
+      setEnrollments(storageService.getBiometricEnrollments());
+      setDeviceUsers((prev) =>
+        prev.map((u) =>
+          u.uid === uid ? { ...u, linked: true, personId: person.id, personName: person.fullName, personType: draft.type } : u
+        )
+      );
+    } else {
+      setDeviceUsersMsg(result.error || 'Linking failed.');
+    }
+    setLinkBusyUid(null);
+  };
+
+  const handleToggleEnrollmentStatus = (personId: string) => {
+    const entry = enrollments.find((e) => e.personId === personId);
+    if (!entry) return;
+    storageService.saveBiometricEnrollment({ ...entry, status: entry.status === 'disabled' ? 'active' : 'disabled' });
+    setEnrollments(storageService.getBiometricEnrollments());
+  };
+
+  const filteredDeviceUsers = deviceUsers.filter((u) => {
+    if (!deviceUserSearch.trim()) return true;
+    const q = deviceUserSearch.trim().toLowerCase();
+    return (
+      u.deviceName.toLowerCase().includes(q) ||
+      u.uid.includes(q) ||
+      u.deviceUserId.includes(q) ||
+      (u.personName || '').toLowerCase().includes(q)
+    );
+  });
 
   const persistBiometricConfig = () => {
     biometricBridge.configure({
@@ -212,9 +289,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const result = await biometricBridge.synchronize();
     if (result.success) {
       const today = new Date().toISOString().substring(0, 10);
+      const currentEnrollments = storageService.getBiometricEnrollments();
       let recorded = 0;
+      let denied = 0;
       for (const rec of result.records) {
         if (!rec.personId || !rec.personName) continue;
+        const enrollment = currentEnrollments.find((e) => e.personId === rec.personId);
+        if (enrollment?.status === 'disabled') {
+          denied++;
+          continue;
+        }
         storageService.recordAttendance({
           id: `att-sync-${rec.deviceUserId}-${rec.timestamp}`,
           personId: rec.personId,
@@ -230,7 +314,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         });
         recorded++;
       }
-      setActionMsg({ text: `Synchronized ${result.count} new punch(es) from device — ${recorded} recorded to attendance.`, ok: true });
+      setActionMsg({
+        text: `Synchronized ${result.count} new punch(es) from device — ${recorded} recorded to attendance${
+          denied ? `, ${denied} skipped (biometric disabled)` : ''
+        }.`,
+        ok: true,
+      });
     } else {
       setActionMsg({ text: result.error || 'Synchronize failed.', ok: false });
     }
@@ -841,25 +930,159 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 {enrollments.map((en) => (
                   <div
                     key={en.personId}
-                    className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex justify-between items-start text-xs"
+                    className={`p-3 rounded-lg border flex justify-between items-start text-xs ${
+                      en.status === 'disabled' ? 'bg-gray-100 border-gray-300 opacity-70' : 'bg-gray-50 border-gray-200'
+                    }`}
                   >
                     <div>
-                      <div className="font-bold text-gray-900">{en.personName}</div>
+                      <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                        {en.personName}
+                        {en.status === 'disabled' && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">
+                            DISABLED
+                          </span>
+                        )}
+                      </div>
                       <div className="text-gray-400 text-[11px] mt-0.5 font-mono">
                         {en.personType} • {en.confidenceScore}% • {new Date(en.enrolledAt).toLocaleDateString()}
+                        {en.deviceUserId ? ` • device uid ${en.deviceUserId}` : ''}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveEnrollment(en.personId)}
-                      className="p-1 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                      aria-label={`Remove fingerprint for ${en.personName}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleEnrollmentStatus(en.personId)}
+                        className="p-1 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        aria-label={en.status === 'disabled' ? `Re-enable access for ${en.personName}` : `Disable access for ${en.personName}`}
+                        title={en.status === 'disabled' ? 'Re-enable access' : 'Disable access (keeps fingerprint on device)'}
+                      >
+                        {en.status === 'disabled' ? <ShieldCheck className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEnrollment(en.personId)}
+                        className="p-1 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        aria-label={`Remove fingerprint for ${en.personName}`}
+                        title="Remove fingerprint from device entirely"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Existing device users (e.g. enrolled via EasyBio before gymos existed) */}
+          <div className="pt-4 border-t border-gray-100 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-600" />
+                Device-Registered Users {deviceUsers.length > 0 ? `(${deviceUsers.length})` : ''}
+              </h4>
+              <button
+                type="button"
+                onClick={handleLoadDeviceUsers}
+                disabled={deviceUsersLoading}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
+              >
+                {deviceUsersLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                {deviceUsersLoading ? 'Loading…' : deviceUsers.length ? 'Reload from Device' : 'Load Users from Device'}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Everyone already fingerprint-enrolled on the terminal (including from before gymos was connected). Link
+              each one to a gymos trainee, trainer, or staff record — no new fingerprint scan needed, it's already on
+              the device.
+            </p>
+
+            {deviceUsersMsg && (
+              <div className="p-2.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                {deviceUsersMsg}
+              </div>
+            )}
+
+            {deviceUsers.length > 0 && (
+              <>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={deviceUserSearch}
+                    onChange={(e) => setDeviceUserSearch(e.target.value)}
+                    placeholder="Search by device name, UID, or linked person…"
+                    className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-xs text-gray-800"
+                  />
+                </div>
+
+                <div className="max-h-96 overflow-y-auto space-y-1.5 border border-gray-200 rounded-lg p-2">
+                  {filteredDeviceUsers.map((du) => {
+                    const draft = linkDrafts[du.uid] || { type: 'trainee' as BiometricPersonType, personId: '' };
+                    const options = getPeopleForType(draft.type);
+                    return (
+                      <div
+                        key={du.uid}
+                        className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 flex flex-col md:flex-row md:items-center gap-2 text-xs"
+                      >
+                        <div className="md:w-56 shrink-0">
+                          <div className="font-bold text-gray-900">{du.deviceName || `(unnamed) uid ${du.uid}`}</div>
+                          <div className="text-gray-400 text-[10px] font-mono">
+                            uid {du.uid} • device id {du.deviceUserId}
+                          </div>
+                        </div>
+
+                        {du.linked ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Linked to {du.personName} ({du.personType})
+                          </span>
+                        ) : (
+                          <div className="flex flex-1 flex-wrap items-center gap-1.5">
+                            <select
+                              value={draft.type}
+                              onChange={(e) =>
+                                setLinkDrafts((prev) => ({
+                                  ...prev,
+                                  [du.uid]: { type: e.target.value as BiometricPersonType, personId: '' },
+                                }))
+                              }
+                              className="px-2 py-1.5 bg-white border border-gray-300 rounded-lg font-semibold text-gray-800"
+                            >
+                              <option value="trainee">Trainee</option>
+                              <option value="trainer">Trainer</option>
+                              <option value="staff">Staff</option>
+                            </select>
+                            <select
+                              value={draft.personId}
+                              onChange={(e) =>
+                                setLinkDrafts((prev) => ({ ...prev, [du.uid]: { type: draft.type, personId: e.target.value } }))
+                              }
+                              className="flex-1 min-w-[10rem] px-2 py-1.5 bg-white border border-gray-300 rounded-lg font-semibold text-gray-800"
+                            >
+                              <option value="">Select person…</option>
+                              {options.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.fullName}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleLinkDeviceUser(du.uid)}
+                              disabled={!draft.personId || linkBusyUid === du.uid}
+                              className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-bold transition-colors shadow-xs flex items-center gap-1"
+                            >
+                              {linkBusyUid === du.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                              Link
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
