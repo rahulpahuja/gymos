@@ -133,9 +133,22 @@ export class FingerprintDeviceAdapter {
         if (controller.signal.aborted) {
           throw new Error(`Bridge did not respond within ${Math.round(timeoutMs / 1000)}s — check it's running and the IP/port are correct.`);
         }
+        const hints: string[] = [];
+        if (this.baseUrl().toLowerCase().startsWith('https://')) {
+          hints.push(
+            "the bridge (biometric-bridge/server.py) only serves plain http:// — Flask's dev server doesn't speak TLS, " +
+              "so an https:// bridge URL will always fail to connect. Use http:// instead."
+          );
+        }
+        if (/:8000\b/.test(this.baseUrl())) {
+          hints.push(
+            'port 8000 is the old EasyBio dashboard, not this bridge — biometric-bridge/server.py listens on port 8090 by default.'
+          );
+        }
         throw new Error(
-          `Could not reach ${this.baseUrl()} — is biometric-bridge/server.py running there, and is this machine on the same network? ` +
-            `(${networkErr instanceof Error ? networkErr.message : 'network error'})`
+          `Could not reach ${this.baseUrl()} — is biometric-bridge/server.py running there, and is this machine on the same network?` +
+            (hints.length ? ` Also: ${hints.join(' ')}` : '') +
+            ` (${networkErr instanceof Error ? networkErr.message : 'network error'})`
         );
       }
       const body = await res.json().catch(() => ({}));

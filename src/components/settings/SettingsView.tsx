@@ -647,7 +647,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-gray-900"
               />
               <p className="text-[11px] text-gray-400 mt-1">
-                IP of the machine running <code>biometric-bridge/server.py</code> — not the fingerprint terminal's own IP.
+                Must be <code>http://</code> (not https) on port <code>8090</code> (not 8000 — that's the old EasyBio
+                dashboard) — the IP of whichever machine runs <code>biometric-bridge/server.py</code>, not the terminal's own IP.
               </p>
             </div>
             <div className="md:col-span-2 flex items-center gap-2">
