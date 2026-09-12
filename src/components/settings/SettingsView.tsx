@@ -33,6 +33,7 @@ import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, Biometri
 import { storageService } from '../../services/storageService';
 import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
+import { firestoreSync } from '../../services/firestoreSync';
 import { backupService, BackupEnvelope } from '../../services/backupService';
 
 interface SettingsViewProps {
@@ -44,6 +45,7 @@ interface SettingsViewProps {
   onToggleTheme?: (theme: 'light' | 'dark') => void;
   currentUser?: UserAccount | null;
   isAdmin?: boolean;
+  isDemoMode?: boolean;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -55,9 +57,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onToggleTheme,
   currentUser,
   isAdmin = false,
+  isDemoMode = false,
 }) => {
   const [backupNote, setBackupNote] = useState<string | null>(null);
   const backupInputRef = React.useRef<HTMLInputElement>(null);
+
+  // One-time cleanup for real accounts that got seeded with fake sample data
+  // before that was fixed to only ever happen in demo mode.
+  const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [cleanupMsg, setCleanupMsg] = useState<string | null>(null);
+
+  const handleClearSeedData = async () => {
+    const confirmed = window.confirm(
+      'This permanently deletes ALL branches, trainees, trainers, payments, attendance, and every other ' +
+        'operational record for this account — both on this device and in the cloud. This cannot be undone. ' +
+        'Only do this if everything currently shown is leftover fake sample data, not real records. Continue?'
+    );
+    if (!confirmed) return;
+
+    setCleanupBusy(true);
+    setCleanupMsg('Clearing local data…');
+    storageService.clearOperationalData();
+
+    setCleanupMsg('Clearing cloud data…');
+    const result = await firestoreSync.clearAllCollections();
+
+    setCleanupBusy(false);
+    if (result.errors.length) {
+      setCleanupMsg(`Cleared most collections, but failed on: ${result.errors.join(', ')}. Check console for details.`);
+    } else {
+      setCleanupMsg('Done — all sample data cleared locally and in the cloud. Reloading…');
+      setTimeout(() => window.location.reload(), 1500);
+    }
+  };
 
   const handleRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -425,6 +457,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Global branding, theme preferences, multi-branch parameters, tax credentials, and default printable voucher templates
         </p>
       </div>
+
+      {/* One-time cleanup: real accounts that got seeded with fake sample data
+          before that was fixed to only ever happen in demo mode. */}
+      {isAdmin && !isDemoMode && (
+        <div className="bg-rose-50 dark:bg-rose-950/30 p-5 rounded-xl border border-rose-200 dark:border-rose-900 shadow-sm space-y-3">
+          <h3 className="text-sm font-bold text-rose-900 dark:text-rose-300 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            Clear Leftover Sample Data
+          </h3>
+          <p className="text-xs text-rose-800/80 dark:text-rose-300/80">
+            If this account still shows old fake sample records (e.g. "Indore Central", "Rahul Malhotra") that were
+            written before this was fixed to only affect Demo Login, use this to permanently delete them — locally
+            and from the cloud. Only use this if nothing currently shown is real data you want to keep.
+          </p>
+          <button
+            type="button"
+            onClick={handleClearSeedData}
+            disabled={cleanupBusy}
+            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
+          >
+            {cleanupBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            {cleanupBusy ? 'Clearing…' : 'Clear All Sample Data'}
+          </button>
+          {cleanupMsg && <p className="text-xs font-semibold text-rose-900 dark:text-rose-300">{cleanupMsg}</p>}
+        </div>
+      )}
 
       {/* Global Theme & Appearance Toggle (Persisted in Firestore) */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-gray-200 dark:border-slate-700 shadow-sm space-y-4 transition-colors">

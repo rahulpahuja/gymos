@@ -563,6 +563,7 @@ export default function App() {
                 onToggleTheme={handleToggleTheme}
                 currentUser={currentUserAccount}
                 isAdmin={currentRole === 'admin'}
+                isDemoMode={isDemoMode}
               />
             )}
           </div>

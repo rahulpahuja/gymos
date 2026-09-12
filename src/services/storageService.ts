@@ -1271,6 +1271,32 @@ class StorageService {
     this.notifyAll();
   }
 
+  /** Wipes every operational collection to genuinely empty (not fake seed data).
+   * For real accounts that got seeded before that was fixed — does NOT touch
+   * Firestore; call firestoreSync.clearAllCollections() alongside this. */
+  public clearOperationalData() {
+    localStorage.setItem(STORAGE_KEYS.BRANCHES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.MEMBERSHIP_PLANS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PT_PACKAGES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.TRAINERS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.TRAINEES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PT_SUBSCRIPTIONS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PT_SESSIONS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PAYMENTS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.PT_SETTLEMENTS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.EQUIPMENT, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.ENQUIRIES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.AUDIT_LOGS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.REFUNDS, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.TRAINER_SALARIES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.TRAINER_ADVANCES, JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, JSON.stringify([]));
+
+    this.notifyAll();
+  }
+
   // Subscribe to changes for live UI refresh
   public subscribe(key: string, callback: () => void) {
     if (!this.listeners.has(key)) {

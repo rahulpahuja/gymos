@@ -167,6 +167,35 @@ class FirestoreSyncService {
     }
   }
 
+  // Deletes every document in every synced collection — used to clean up fake
+  // seed data that seedEmptyCollections() previously pushed up for a real
+  // account before that was fixed. Does not touch local storage; the caller
+  // should also call storageService.clearOperationalData().
+  public async clearAllCollections(): Promise<{ cleared: string[]; errors: string[] }> {
+    const cleared: string[] = [];
+    const errors: string[] = [];
+    for (const col of COLLECTIONS) {
+      try {
+        const colRef = collection(db, col.firestore);
+        // Loop in case a collection holds more docs than one batch can delete.
+        for (let guard = 0; guard < 20; guard++) {
+          const snapshot = await getDocs(colRef);
+          if (snapshot.empty) break;
+          const batch = writeBatch(db);
+          snapshot.docs.slice(0, 450).forEach((docSnap) => batch.delete(docSnap.ref));
+          await batch.commit();
+          if (snapshot.size <= 450) break;
+        }
+        this.remoteIds.set(col.firestore, new Set());
+        cleared.push(col.firestore);
+      } catch (error) {
+        errors.push(col.firestore);
+        console.warn(`[FirestoreSync] Failed to clear ${col.firestore}:`, error);
+      }
+    }
+    return { cleared, errors };
+  }
+
   // Save single entity to Firestore in background
   public async syncRecord(collectionName: string, id: string, data: any): Promise<void> {
     try {
