@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 enrollments.json
 state.json
+bridge_cert.pem
+bridge_key.pem

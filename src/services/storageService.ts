@@ -54,7 +54,9 @@ const STORAGE_KEYS = {
 export const DEFAULT_BIOMETRIC_CONFIG: BiometricBridgeConfig = {
   // Points at the machine running biometric-bridge/server.py — NOT the fingerprint
   // terminal's own IP. 127.0.0.1 only works if gymos and the bridge run on the same box.
-  bridgeUrl: 'http://127.0.0.1:8090',
+  // The bridge serves https (self-signed cert) so this works even when gymos itself
+  // is loaded over https — see biometric-bridge/README.md for the one-time trust step.
+  bridgeUrl: 'https://127.0.0.1:8090',
   deviceModel: 'ESSL Biometric Terminal',
   autoTurnstile: true,
 };

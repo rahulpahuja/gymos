@@ -10,8 +10,16 @@ running the EasyBio dashboard is fine):
     pip install -r requirements.txt
     ESSL_DEVICE_IP=192.168.1.201 python server.py
 
-Then point gymos Settings > Biometric Bridge at:
-    http://<this-machine's-LAN-IP>:8090
+It serves HTTPS (self-signed cert, auto-generated on first run and reused after
+that) so it can be reached from a gymos page loaded over https:// without the
+browser blocking it as mixed content. The one unavoidable manual step: the
+first time, in a browser on the machine you'll use gymos from, open
+    https://<this-machine's-LAN-IP>:8090/api/status
+directly and click through the "not secure" warning once — that tells the
+browser to trust this specific certificate. After that, gymos's own fetch
+calls to the same address work normally. Then point gymos Settings > Biometric
+Bridge at:
+    https://<this-machine's-LAN-IP>:8090
 
 Notes / real hardware constraints (not hidden — surfaced as errors, not fake success):
   - The device only accepts one active TCP session at a time. Live capture is
@@ -24,12 +32,14 @@ Notes / real hardware constraints (not hidden — surfaced as errors, not fake s
     returns a clear error instead of pretending the door opened.
 """
 
+import ipaddress
 import json
 import os
 import queue
+import socket
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
@@ -43,6 +53,8 @@ BRIDGE_PORT = int(os.environ.get("BRIDGE_PORT", "8090"))
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MAPPING_FILE = os.path.join(BASE_DIR, "enrollments.json")
 STATE_FILE = os.path.join(BASE_DIR, "state.json")
+CERT_FILE = os.path.join(BASE_DIR, "bridge_cert.pem")
+KEY_FILE = os.path.join(BASE_DIR, "bridge_key.pem")
 
 app = Flask(__name__)
 CORS(app)
@@ -345,6 +357,54 @@ def stream():
     return Response(gen(), mimetype="text/event-stream")
 
 
+def ensure_self_signed_cert():
+    """Generates a persistent self-signed cert on first run and reuses it after that,
+    so browsers only need to be told to trust it once, not on every restart."""
+    if os.path.exists(CERT_FILE) and os.path.exists(KEY_FILE):
+        return CERT_FILE, KEY_FILE
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "gymos-biometric-bridge")])
+
+    san = [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]
+    try:
+        san.append(x509.IPAddress(ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))))
+    except Exception:
+        pass  # best-effort; the cert still works, browsers just show a hostname-mismatch note pre-trust
+
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(timezone.utc))
+        .not_valid_after(datetime.now(timezone.utc) + timedelta(days=3650))
+        .add_extension(x509.SubjectAlternativeName(san), critical=False)
+        .sign(key, hashes.SHA256())
+    )
+
+    with open(CERT_FILE, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+    with open(KEY_FILE, "wb") as f:
+        f.write(
+            key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+    return CERT_FILE, KEY_FILE
+
+
 if __name__ == "__main__":
     start_live_capture_thread()
-    app.run(host="0.0.0.0", port=BRIDGE_PORT, threaded=True)
+    cert_path, key_path = ensure_self_signed_cert()
+    print(f"\nServing HTTPS with a self-signed cert. First time, open this in a browser and trust it:")
+    print(f"  https://127.0.0.1:{BRIDGE_PORT}/api/status\n")
+    app.run(host="0.0.0.0", port=BRIDGE_PORT, threaded=True, ssl_context=(cert_path, key_path))

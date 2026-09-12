@@ -13,11 +13,21 @@ pip install -r requirements.txt
 ESSL_DEVICE_IP=192.168.1.201 ESSL_DEVICE_PORT=4370 python server.py
 ```
 
-It listens on `0.0.0.0:8090`. In gymos → Settings → Biometric Scanner &
-Turnstile Bridge, set the bridge URL to:
+It serves **HTTPS** on `0.0.0.0:8090`, using a self-signed certificate it
+generates once on first run and reuses after that (`bridge_cert.pem` /
+`bridge_key.pem`, gitignored — don't copy these between machines).
+
+**One-time step per browser/device**: open `https://<this machine's LAN
+IP>:8090/api/status` directly in a new tab first and click through the "not
+secure" warning to trust it. Skipping this makes gymos's own calls to the
+bridge silently fail with a generic network error — that's the browser
+blocking an untrusted cert, not a bug in the bridge or in gymos.
+
+Then in gymos → Settings → Biometric Scanner & Turnstile Bridge, set the
+bridge URL to:
 
 ```
-http://<this machine's LAN IP>:8090
+https://<this machine's LAN IP>:8090
 ```
 
 Find that IP with `ipconfig` (Windows) or `ifconfig`/`ip addr` (Linux/Mac).
@@ -65,10 +75,12 @@ but two *separate processes* — EasyBio and this bridge — both talking to the
 device at once will still collide, since the terminal only accepts one active
 connection at a time).
 
-## Browser mixed-content note
+## Browser HTTPS trust note
 
-If gymos is deployed over HTTPS (e.g. Netlify), a browser will block `fetch()`
-calls from that HTTPS page to this bridge's plain `http://` address (mixed
-content). For real hardware use at the front desk, run gymos locally on the same
-LAN instead (`npm run dev` / `vite preview --host`), so the page itself is also
-served over plain HTTP.
+Because the bridge serves HTTPS with a self-signed cert (not one signed by a
+public authority), browsers won't trust it automatically. This is a real
+security boundary — no code here can bypass it. The fix is the one-time step
+above: visit the bridge's own URL directly once per browser/device and accept
+the certificate, before gymos tries to call it via `fetch()`. After that, it
+works from gymos regardless of whether gymos itself is loaded over http or
+https.

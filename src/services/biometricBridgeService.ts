@@ -136,8 +136,9 @@ export class FingerprintDeviceAdapter {
         const hints: string[] = [];
         if (this.baseUrl().toLowerCase().startsWith('https://')) {
           hints.push(
-            "the bridge (biometric-bridge/server.py) only serves plain http:// — Flask's dev server doesn't speak TLS, " +
-              "so an https:// bridge URL will always fail to connect. Use http:// instead."
+            'if this is the first time connecting from this browser, open the bridge URL directly in a new tab first ' +
+              '(e.g. paste it in the address bar) and click through the "not secure" warning to trust its self-signed ' +
+              "certificate once — until that's done, the browser silently blocks fetch() calls to it, which looks exactly like this."
           );
         }
         if (/:8000\b/.test(this.baseUrl())) {

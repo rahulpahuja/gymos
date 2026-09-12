@@ -657,12 +657,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="text"
                 value={bridgeUrl}
                 onChange={(e) => setBridgeUrl(e.target.value)}
-                placeholder="http://127.0.0.1:8090"
+                placeholder="https://127.0.0.1:8090"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-gray-900"
               />
               <p className="text-[11px] text-gray-400 mt-1">
-                Must be <code>http://</code> (not https) on port <code>8090</code> (not 8000 — that's the old EasyBio
-                dashboard) — the IP of whichever machine runs <code>biometric-bridge/server.py</code>, not the terminal's own IP.
+                Use <code>https://</code> on port <code>8090</code> (not 8000 — that's the old EasyBio dashboard) —
+                the IP of whichever machine runs <code>biometric-bridge/server.py</code>, not the terminal's own IP.
+                First time from a given browser, open that same URL directly in a new tab and click through the
+                "not secure" warning once to trust its certificate.
               </p>
             </div>
             <div className="md:col-span-2 flex items-center gap-2">
