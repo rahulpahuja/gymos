@@ -73,6 +73,10 @@ testFirestoreConnection();
 // Initial Super Admin emails (auto-approved as admin on first sign-in)
 const SUPER_ADMIN_EMAILS = ['rahulpahuja2015@gmail.com', 'therahulpahuja@gmail.com'];
 
+// Pre-authorizations are keyed by lowercased email (the real UID doesn't exist
+// yet), and consumed — deleted — the moment that email actually signs in.
+const PREAUTH_COLLECTION = 'preauthorized_staff';
+
 export const firebaseAuthService = {
   // Sign In With Google
   async signInWithGoogle(requestedRole: UserRole = 'manager', requestedBranchId: string = 'branch-1'): Promise<UserAccount> {
@@ -129,6 +133,21 @@ export const firebaseAuthService = {
     const email = (user.email || '').toLowerCase();
     const isOwner = SUPER_ADMIN_EMAILS.includes(email);
 
+    // Was this email pre-authorized by an admin/manager before they ever signed in?
+    let preAuth: { role: UserRole; branchId: string; approvedBy?: string } | null = null;
+    if (!userSnap?.exists() && !isOwner) {
+      try {
+        const preAuthRef = doc(db, PREAUTH_COLLECTION, email);
+        const preAuthSnap = await getDoc(preAuthRef);
+        if (preAuthSnap.exists()) {
+          preAuth = preAuthSnap.data() as { role: UserRole; branchId: string; approvedBy?: string };
+          await deleteDoc(preAuthRef); // consume it — one-time use
+        }
+      } catch (e) {
+        console.warn('[Firebase] Pre-authorization lookup failed, continuing as normal sign-up:', e);
+      }
+    }
+
     if (userSnap && userSnap.exists()) {
       const existing = userSnap.data() as UserAccount;
       // If super admin email, enforce approved admin
@@ -160,9 +179,9 @@ export const firebaseAuthService = {
     }
 
     // New User Profile
-    const status: UserApprovalStatus = isOwner ? 'approved' : 'pending';
-    const role: UserRole = isOwner ? 'admin' : requestedRole;
-    const branchId = isOwner ? 'all' : requestedBranchId;
+    const status: UserApprovalStatus = isOwner || preAuth ? 'approved' : 'pending';
+    const role: UserRole = isOwner ? 'admin' : preAuth?.role || requestedRole;
+    const branchId = isOwner ? 'all' : preAuth?.branchId || requestedBranchId;
 
     const newAccount: UserAccount = {
       id: user.uid,
@@ -180,6 +199,9 @@ export const firebaseAuthService = {
 
     if (isOwner) {
       newAccount.approvedBy = 'System (Owner)';
+      newAccount.approvedAt = new Date().toISOString();
+    } else if (preAuth) {
+      newAccount.approvedBy = preAuth.approvedBy || 'Pre-authorized';
       newAccount.approvedAt = new Date().toISOString();
     }
 
@@ -305,6 +327,19 @@ export const firebaseAuthService = {
   },
 
   // Approve a pending user (optionally linking a trainer/trainee operational record)
+  // Pre-authorizes an email that hasn't signed in yet: the moment that Google
+  // account first signs in, syncOrCreateUserProfile finds and consumes this,
+  // creating their real profile as already-approved instead of pending.
+  async preAuthorizeStaff(email: string, role: UserRole, branchId: string, approverName: string): Promise<void> {
+    const normalizedEmail = email.trim().toLowerCase();
+    await setDoc(doc(db, PREAUTH_COLLECTION, normalizedEmail), {
+      role,
+      branchId,
+      approvedBy: approverName,
+      createdAt: new Date().toISOString(),
+    });
+  },
+
   async approveUser(
     userId: string,
     role: UserRole,

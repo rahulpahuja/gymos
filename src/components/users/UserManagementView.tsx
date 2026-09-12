@@ -209,26 +209,13 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
 
     setPreAuthLoading(true);
     try {
-      // Create a pre-authorized placeholder profile
-      const dummyId = `preauth-${Date.now()}`;
-      const newAccount: UserAccount = {
-        id: dummyId,
-        email: preAuthEmail.trim().toLowerCase(),
-        displayName: preAuthEmail.split('@')[0],
-        role: preAuthRole,
-        branchId: preAuthRole === 'admin' ? 'all' : preAuthBranchId,
-        status: 'approved',
-        approvedBy: currentUser.name,
-        approvedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-      };
-      await firebaseAuthService.approveUser(
-        newAccount.id,
-        newAccount.role,
-        newAccount.branchId,
+      await firebaseAuthService.preAuthorizeStaff(
+        preAuthEmail,
+        preAuthRole,
+        preAuthRole === 'admin' ? 'all' : preAuthBranchId,
         currentUser.name
       );
-      showToast(`Pre-authorized ${preAuthEmail} for automatic Google sign-in.`);
+      showToast(`Pre-authorized ${preAuthEmail} — they'll get instant approved access on their next Google sign-in.`);
       setIsPreAuthOpen(false);
       setPreAuthEmail('');
     } catch (err) {
