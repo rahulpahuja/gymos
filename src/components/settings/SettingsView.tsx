@@ -132,7 +132,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [connMsg, setConnMsg] = useState<string>('');
 
   // Device actions — force-open, synchronize, refresh (Settings & Configuration)
-  const [actionBusy, setActionBusy] = useState<'force-open' | 'sync' | 'refresh' | null>(null);
+  const [actionBusy, setActionBusy] = useState<'test-open' | 'force-open' | 'sync' | 'refresh' | null>(null);
   const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   // Fingerprint enrollment — people are branch-scoped by the caller so this
@@ -178,8 +178,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       }.`);
     } else {
       setConnStatus('error');
-      setConnMsg(`Could not reach the bridge at ${status.port}. Make sure biometric-bridge/server.py is running and the URL is a valid http:// address.`);
+      setConnMsg(biometricBridge.getLastError() || `Could not reach the bridge at ${status.port}.`);
     }
+  };
+
+  const handleTestOpen = async () => {
+    setActionBusy('test-open');
+    setActionMsg(null);
+    const result = await biometricBridge.forceOpen(1);
+    setActionBusy(null);
+    setActionMsg({
+      text: result.success
+        ? 'Test signal sent — relay pulsed for 1s. If the door/turnstile didn\'t click, this model likely has no wired relay.'
+        : result.error || 'Test failed.',
+      ok: result.success,
+    });
   };
 
   const handleForceOpen = async () => {
@@ -630,9 +643,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="text"
                 value={bridgeUrl}
                 onChange={(e) => setBridgeUrl(e.target.value)}
-                placeholder="http://192.168.1.201:8090"
+                placeholder="http://127.0.0.1:8090"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-gray-900"
               />
+              <p className="text-[11px] text-gray-400 mt-1">
+                IP of the machine running <code>biometric-bridge/server.py</code> — not the fingerprint terminal's own IP.
+              </p>
             </div>
             <div className="md:col-span-2 flex items-center gap-2">
               <input
@@ -683,8 +699,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
           </div>
 
-          {/* Device actions: force-open, synchronize, refresh */}
+          {/* Device actions: test-open, force-open, synchronize, refresh */}
           <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleTestOpen}
+              disabled={actionBusy !== null}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 mt-3"
+            >
+              {actionBusy === 'test-open' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Fingerprint className="w-3.5 h-3.5" />}
+              {actionBusy === 'test-open' ? 'Testing…' : 'Test Open Door'}
+            </button>
             <button
               type="button"
               onClick={handleForceOpen}

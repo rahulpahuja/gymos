@@ -59,6 +59,7 @@ export class FingerprintDeviceAdapter {
   private serialNumber = '';
   private userCount: number | undefined;
   private liveSource: EventSource | null = null;
+  private lastError = '';
 
   constructor() {
     try {
@@ -99,18 +100,44 @@ export class FingerprintDeviceAdapter {
     }
   }
 
+  /** True when the page is https and the bridge URL is plain http — the browser will silently block the call. */
+  private isMixedContentBlocked(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      this.config.bridgeUrl.trim().toLowerCase().startsWith('http://')
+    );
+  }
+
   private async request<T>(path: string, init?: RequestInit, timeoutMs = 15000): Promise<T> {
     if (!this.validUrl()) {
       throw new Error('Bridge URL must be a valid http:// or https:// address.');
     }
+    if (this.isMixedContentBlocked()) {
+      throw new Error(
+        `This page is loaded over HTTPS, so the browser blocks calls to a plain http:// bridge address (mixed content). ` +
+          `Load gymos over plain http (e.g. run "npm run dev" and open it via http://, not the https:// deployed URL) to reach the bridge.`
+      );
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(`${this.baseUrl()}${path}`, {
-        ...init,
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-      });
+      let res: Response;
+      try {
+        res = await fetch(`${this.baseUrl()}${path}`, {
+          ...init,
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+        });
+      } catch (networkErr) {
+        if (controller.signal.aborted) {
+          throw new Error(`Bridge did not respond within ${Math.round(timeoutMs / 1000)}s — check it's running and the IP/port are correct.`);
+        }
+        throw new Error(
+          `Could not reach ${this.baseUrl()} — is biometric-bridge/server.py running there, and is this machine on the same network? ` +
+            `(${networkErr instanceof Error ? networkErr.message : 'network error'})`
+        );
+      }
       const body = await res.json().catch(() => ({}));
       if (!res.ok && !('error' in body)) {
         throw new Error(`Bridge responded with HTTP ${res.status}`);
@@ -136,8 +163,13 @@ export class FingerprintDeviceAdapter {
     };
   }
 
+  getLastError(): string {
+    return this.lastError;
+  }
+
   async connect(): Promise<boolean> {
     this.currentStatus = 'connecting';
+    this.lastError = '';
     try {
       const data = await this.request<{
         success: boolean;
@@ -149,6 +181,7 @@ export class FingerprintDeviceAdapter {
       if (!data.success) {
         this.connected = false;
         this.currentStatus = 'error';
+        this.lastError = data.error || 'Bridge reported it could not reach the device.';
         return false;
       }
       this.connected = true;
@@ -157,9 +190,10 @@ export class FingerprintDeviceAdapter {
       this.serialNumber = data.serialNumber || '';
       this.userCount = data.userCount;
       return true;
-    } catch {
+    } catch (e) {
       this.connected = false;
       this.currentStatus = 'error';
+      this.lastError = e instanceof Error ? e.message : 'Could not reach the bridge.';
       return false;
     }
   }
