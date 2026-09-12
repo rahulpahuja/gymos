@@ -1233,12 +1233,10 @@ class StorageService {
   }
 
   private init() {
-    if (typeof window === 'undefined') return;
-
-    // Load or seed default records
-    if (!localStorage.getItem(STORAGE_KEYS.BRANCHES)) {
-      this.resetToDefaults();
-    }
+    // Intentionally does not auto-seed sample data on empty storage — a real
+    // account with no data yet should see empty lists, not fabricated demo
+    // records. Sample data is only ever written explicitly via
+    // resetToDefaults(), which the demo-login flow calls on purpose.
   }
 
   public resetToDefaults() {
@@ -1387,7 +1385,7 @@ class StorageService {
 
   // --- Branches ---
   public getBranches(): Branch[] {
-    return this.getItem<Branch[]>(STORAGE_KEYS.BRANCHES, SEED_BRANCHES);
+    return this.getItem<Branch[]>(STORAGE_KEYS.BRANCHES, []);
   }
 
   public saveBranch(branch: Branch) {
@@ -1404,12 +1402,12 @@ class StorageService {
 
   // --- Membership Plans ---
   public getMembershipPlans(): MembershipPlan[] {
-    return this.getItem<MembershipPlan[]>(STORAGE_KEYS.MEMBERSHIP_PLANS, SEED_MEMBERSHIP_PLANS);
+    return this.getItem<MembershipPlan[]>(STORAGE_KEYS.MEMBERSHIP_PLANS, []);
   }
 
   // --- PT Packages (Section 61) ---
   public getPTPackages(): PTPackage[] {
-    return this.getItem<PTPackage[]>(STORAGE_KEYS.PT_PACKAGES, SEED_PT_PACKAGES);
+    return this.getItem<PTPackage[]>(STORAGE_KEYS.PT_PACKAGES, []);
   }
 
   public savePTPackage(pkg: PTPackage) {
@@ -1426,7 +1424,7 @@ class StorageService {
 
   // --- Trainers ---
   public getTrainers(): Trainer[] {
-    const list = this.getItem<Trainer[]>(STORAGE_KEYS.TRAINERS, SEED_TRAINERS);
+    const list = this.getItem<Trainer[]>(STORAGE_KEYS.TRAINERS, []);
     return list.map((t) => ({
       ...t,
       baseSalary: t.baseSalary ?? 0,
@@ -1449,7 +1447,7 @@ class StorageService {
 
   // --- Trainees ---
   public getTrainees(): Trainee[] {
-    const list = this.getItem<Trainee[]>(STORAGE_KEYS.TRAINEES, SEED_TRAINEES);
+    const list = this.getItem<Trainee[]>(STORAGE_KEYS.TRAINEES, []);
     return list.map((t) => ({
       ...t,
       totalPaid: t.totalPaid ?? 0,
@@ -1470,7 +1468,7 @@ class StorageService {
 
   // --- PT Subscriptions (Section 62) ---
   public getPTSubscriptions(): PTSubscription[] {
-    const list = this.getItem<PTSubscription[]>(STORAGE_KEYS.PT_SUBSCRIPTIONS, SEED_PT_SUBSCRIPTIONS);
+    const list = this.getItem<PTSubscription[]>(STORAGE_KEYS.PT_SUBSCRIPTIONS, []);
     return list.map((s) => ({
       ...s,
       packagePrice: s.packagePrice ?? s.netPrice ?? s.price ?? 0,
@@ -1507,7 +1505,7 @@ class StorageService {
 
   // --- PT Sessions (Section 63) ---
   public getPTSessions(): PTSession[] {
-    return this.getItem<PTSession[]>(STORAGE_KEYS.PT_SESSIONS, SEED_PT_SESSIONS);
+    return this.getItem<PTSession[]>(STORAGE_KEYS.PT_SESSIONS, []);
   }
 
   public savePTSession(session: PTSession) {
@@ -1549,7 +1547,7 @@ class StorageService {
 
   // --- Payments (Sections 60, 69) ---
   public getPayments(): PaymentTransaction[] {
-    const list = this.getItem<PaymentTransaction[]>(STORAGE_KEYS.PAYMENTS, SEED_PAYMENTS);
+    const list = this.getItem<PaymentTransaction[]>(STORAGE_KEYS.PAYMENTS, []);
     return list.map((p) => {
       const membershipAmount = p.membershipAmount ?? p.allocation?.generalMembershipAmount ?? 0;
       const ptAmount = p.ptAmount ?? p.allocation?.ptAmount ?? 0;
@@ -1613,7 +1611,7 @@ class StorageService {
 
   // --- PT Commission Settlements (Section 68) ---
   public getSettlements(): PTCommissionSettlement[] {
-    return this.getItem<PTCommissionSettlement[]>(STORAGE_KEYS.PT_SETTLEMENTS, SEED_SETTLEMENTS);
+    return this.getItem<PTCommissionSettlement[]>(STORAGE_KEYS.PT_SETTLEMENTS, []);
   }
 
   public recordSettlement(settlement: PTCommissionSettlement) {
@@ -1669,7 +1667,7 @@ class StorageService {
 
   // --- Expenses & Equipment ---
   public getExpenses(): GymExpense[] {
-    return this.getItem<GymExpense[]>(STORAGE_KEYS.EXPENSES, SEED_EXPENSES);
+    return this.getItem<GymExpense[]>(STORAGE_KEYS.EXPENSES, []);
   }
 
   public saveExpense(expense: GymExpense) {
@@ -1680,12 +1678,12 @@ class StorageService {
   }
 
   public getEquipment(): GymEquipment[] {
-    return this.getItem<GymEquipment[]>(STORAGE_KEYS.EQUIPMENT, SEED_EQUIPMENT);
+    return this.getItem<GymEquipment[]>(STORAGE_KEYS.EQUIPMENT, []);
   }
 
   // --- Attendance ---
   public getAttendance(): AttendanceRecord[] {
-    return this.getItem<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, SEED_ATTENDANCE);
+    return this.getItem<AttendanceRecord[]>(STORAGE_KEYS.ATTENDANCE, []);
   }
 
   public recordAttendance(record: AttendanceRecord) {
@@ -1697,7 +1695,7 @@ class StorageService {
 
   // --- Enquiries ---
   public getEnquiries(): Enquiry[] {
-    return this.getItem<Enquiry[]>(STORAGE_KEYS.ENQUIRIES, SEED_ENQUIRIES);
+    return this.getItem<Enquiry[]>(STORAGE_KEYS.ENQUIRIES, []);
   }
 
   public saveEnquiry(enquiry: Enquiry) {
@@ -1713,7 +1711,7 @@ class StorageService {
 
   // --- Audit Logs ---
   public getAuditLogs(): AuditLog[] {
-    return this.getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, SEED_AUDIT_LOGS);
+    return this.getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, []);
   }
 
   public logAudit(action: string, entity: string, entityId: string, branchId: string, details: string) {

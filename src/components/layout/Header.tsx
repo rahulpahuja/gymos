@@ -34,6 +34,7 @@ interface HeaderProps {
   onSignOut?: () => void;
   currentTheme?: 'light' | 'dark';
   onToggleTheme?: (theme: 'light' | 'dark') => void;
+  isDemoMode?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   setCurrentUser,
   currentRole,
   onChangeRole,
+  isDemoMode = false,
   branches,
   selectedBranchId,
   setSelectedBranchId,
@@ -265,15 +267,18 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Reset Demo Data Button */}
-        <button
-          id="btn-reset-demo-data"
-          onClick={handleResetData}
-          className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          title="Reset sample data back to clean factory state"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        {/* Reset Demo Data Button — demo mode only; real accounts must never be able
+            to overwrite their live data with sample records from this control. */}
+        {isDemoMode && (
+          <button
+            id="btn-reset-demo-data"
+            onClick={handleResetData}
+            className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Reset sample data back to clean factory state"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </header>
   );

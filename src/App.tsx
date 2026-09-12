@@ -232,11 +232,11 @@ export default function App() {
   };
 
   const activeBranch = branches.find((b) => b.id === currentBranchId) || branches[0] || {
-    id: 'branch-1',
-    name: 'Indore Central (HQ)',
-    city: 'Indore',
-    address: 'Plot 42, Vijay Nagar, AB Road',
-    phone: '+91 731-4099211',
+    id: '',
+    name: 'No Branch Configured',
+    city: '',
+    address: '',
+    phone: '',
   };
 
   const effectiveCurrentUser: CurrentUser = currentUserAccount
@@ -288,6 +288,7 @@ export default function App() {
         branches={branches.length ? branches : storageService.getBranches()}
         onDemoLogin={(role) => {
           sessionStorage.setItem('fitos_demo_mode', 'true');
+          storageService.resetToDefaults();
           setIsDemoMode(true);
           setCurrentRole(role);
           const demoUser: CurrentUser = {
@@ -417,6 +418,7 @@ export default function App() {
           onSignOut={handleSignOut}
           currentTheme={theme}
           onToggleTheme={handleToggleTheme}
+          isDemoMode={isDemoMode}
         />
 
         {/* Dynamic Main Body Content */}
