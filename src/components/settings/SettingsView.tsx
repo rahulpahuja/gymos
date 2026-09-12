@@ -22,8 +22,9 @@ import {
   UserPlus,
   Trash2,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
-import { Branch, UserAccount, BiometricEnrollment, Trainee, Trainer } from '../../types';
+import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
 import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
@@ -33,6 +34,7 @@ interface SettingsViewProps {
   branches: Branch[];
   trainees?: Trainee[];
   trainers?: Trainer[];
+  staff?: UserAccount[];
   currentTheme?: 'light' | 'dark';
   onToggleTheme?: (theme: 'light' | 'dark') => void;
   currentUser?: UserAccount | null;
@@ -43,6 +45,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   branches,
   trainees: traineesProp,
   trainers: trainersProp,
+  staff: staffProp,
   currentTheme,
   onToggleTheme,
   currentUser,
@@ -128,21 +131,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [connMsg, setConnMsg] = useState<string>('');
 
+  // Device actions — force-open, synchronize, refresh (Settings & Configuration)
+  const [actionBusy, setActionBusy] = useState<'force-open' | 'sync' | 'refresh' | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
   // Fingerprint enrollment — people are branch-scoped by the caller so this
   // works identically for demo admin (all branches) and demo manager (one branch).
   const [allTrainees] = useState(() => storageService.getTrainees());
   const [allTrainers] = useState(() => storageService.getTrainers());
   const trainees = traineesProp ?? allTrainees;
   const trainers = trainersProp ?? allTrainers;
+  const staffMembers = staffProp ?? [];
   const [enrollments, setEnrollments] = useState<BiometricEnrollment[]>(() =>
     storageService.getBiometricEnrollments()
   );
-  const [enrollType, setEnrollType] = useState<'trainee' | 'trainer'>('trainee');
+  const [enrollType, setEnrollType] = useState<BiometricPersonType>('trainee');
   const [enrollPersonId, setEnrollPersonId] = useState<string>('');
   const [enrollStatus, setEnrollStatus] = useState<'idle' | 'capturing' | 'success' | 'error'>('idle');
   const [enrollMsg, setEnrollMsg] = useState<string>('');
 
-  const enrollPeople = enrollType === 'trainee' ? trainees : trainers;
+  const enrollPeople: { id: string; fullName: string }[] =
+    enrollType === 'trainee'
+      ? trainees.map((t) => ({ id: t.id, fullName: t.fullName }))
+      : enrollType === 'trainer'
+      ? trainers.map((t) => ({ id: t.id, fullName: t.fullName }))
+      : staffMembers.map((s) => ({ id: s.id, fullName: s.displayName }));
 
   const persistBiometricConfig = () => {
     biometricBridge.configure({
@@ -160,11 +173,69 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const status = biometricBridge.getDeviceStatus();
     if (ok) {
       setConnStatus('connected');
-      setConnMsg(`Connected to ${status.model} on ${status.port} (firmware ${status.firmware}).`);
+      setConnMsg(`Connected to ${status.model} — firmware ${status.firmware}, serial ${status.serialNumber}${
+        status.userCount !== undefined ? `, ${status.userCount} users on device` : ''
+      }.`);
     } else {
       setConnStatus('error');
-      setConnMsg(`Could not open ${status.port}. Bridge URL must be a valid ws:// or wss:// address.`);
+      setConnMsg(`Could not reach the bridge at ${status.port}. Make sure biometric-bridge/server.py is running and the URL is a valid http:// address.`);
     }
+  };
+
+  const handleForceOpen = async () => {
+    setActionBusy('force-open');
+    setActionMsg(null);
+    const result = await biometricBridge.forceOpen(3);
+    setActionBusy(null);
+    setActionMsg({
+      text: result.success ? 'Door relay pulsed — turnstile/door should open now.' : result.error || 'Force-open failed.',
+      ok: result.success,
+    });
+  };
+
+  const handleSynchronize = async () => {
+    setActionBusy('sync');
+    setActionMsg(null);
+    const result = await biometricBridge.synchronize();
+    if (result.success) {
+      const today = new Date().toISOString().substring(0, 10);
+      let recorded = 0;
+      for (const rec of result.records) {
+        if (!rec.personId || !rec.personName) continue;
+        storageService.recordAttendance({
+          id: `att-sync-${rec.deviceUserId}-${rec.timestamp}`,
+          personId: rec.personId,
+          personName: rec.personName,
+          personType: rec.personType === 'staff' ? 'trainer' : rec.personType || 'trainee',
+          branchId: 'branch-1',
+          date: new Date(rec.timestamp).toISOString().substring(0, 10) || today,
+          checkInTime: new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          status: 'present',
+          verificationMethod: 'fingerprint',
+          isPTSessionAttendance: false,
+          deviceId: biometricBridge.getDeviceStatus().serialNumber,
+        });
+        recorded++;
+      }
+      setActionMsg({ text: `Synchronized ${result.count} new punch(es) from device — ${recorded} recorded to attendance.`, ok: true });
+    } else {
+      setActionMsg({ text: result.error || 'Synchronize failed.', ok: false });
+    }
+    setActionBusy(null);
+  };
+
+  const handleRefreshDevice = async () => {
+    setActionBusy('refresh');
+    setActionMsg(null);
+    const result = await biometricBridge.refreshDevice();
+    const status = biometricBridge.getDeviceStatus();
+    setActionMsg({
+      text: result.success
+        ? `Refreshed — ${status.model}, firmware ${status.firmware}, ${status.userCount ?? '?'} users on device.`
+        : result.error || 'Refresh failed.',
+      ok: result.success,
+    });
+    setActionBusy(null);
   };
 
   const handleEnrollFingerprint = async () => {
@@ -175,7 +246,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       return;
     }
     setEnrollStatus('capturing');
-    setEnrollMsg(`Place ${person.fullName}'s finger on the optical sensor…`);
+    setEnrollMsg(`Place ${person.fullName}'s finger on the device sensor — it will prompt for up to 3 scans…`);
     const result = await biometricBridge.enrollFingerprint({
       id: person.id,
       name: person.fullName,
@@ -188,14 +259,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       ));
       setEnrollments(storageService.getBiometricEnrollments());
       setEnrollStatus('success');
-      setEnrollMsg(`Saved fingerprint for ${person.fullName} (${result.confidenceScore}% quality).`);
+      setEnrollMsg(`Saved fingerprint for ${person.fullName} on the device.`);
     } else {
       setEnrollStatus('error');
       setEnrollMsg(result.error || 'Capture failed. Reposition the finger and retry.');
     }
   };
 
-  const handleRemoveEnrollment = (personId: string) => {
+  const handleRemoveEnrollment = async (personId: string) => {
+    await biometricBridge.removeEnrollment(personId);
     storageService.deleteBiometricEnrollment(personId);
     setEnrollments(storageService.getBiometricEnrollments());
   };
@@ -558,7 +630,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="text"
                 value={bridgeUrl}
                 onChange={(e) => setBridgeUrl(e.target.value)}
-                placeholder="ws://127.0.0.1:8088/biometric-bridge"
+                placeholder="http://192.168.1.201:8090"
                 className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-mono text-gray-900"
               />
             </div>
@@ -611,6 +683,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
           </div>
 
+          {/* Device actions: force-open, synchronize, refresh */}
+          <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleForceOpen}
+              disabled={actionBusy !== null}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 mt-3"
+            >
+              {actionBusy === 'force-open' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlugZap className="w-3.5 h-3.5" />}
+              {actionBusy === 'force-open' ? 'Opening…' : 'Force Open Door'}
+            </button>
+            <button
+              type="button"
+              onClick={handleSynchronize}
+              disabled={actionBusy !== null}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 mt-3"
+            >
+              {actionBusy === 'sync' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <DatabaseBackup className="w-3.5 h-3.5" />}
+              {actionBusy === 'sync' ? 'Synchronizing…' : 'Synchronize'}
+            </button>
+            <button
+              type="button"
+              onClick={handleRefreshDevice}
+              disabled={actionBusy !== null}
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5 mt-3"
+            >
+              {actionBusy === 'refresh' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+              {actionBusy === 'refresh' ? 'Refreshing…' : 'Refresh'}
+            </button>
+            {actionMsg && (
+              <span
+                className={`text-xs font-semibold flex items-center gap-1.5 mt-3 ${
+                  actionMsg.ok ? 'text-emerald-600' : 'text-rose-600'
+                }`}
+              >
+                {actionMsg.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                {actionMsg.text}
+              </span>
+            )}
+          </div>
+
           {/* Fingerprint enrollment (Save a biometric per person) */}
           <div className="pt-4 border-t border-gray-100 space-y-3">
             <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
@@ -624,15 +737,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <select
                   value={enrollType}
                   onChange={(e) => {
-                    setEnrollType(e.target.value as 'trainee' | 'trainer');
+                    setEnrollType(e.target.value as BiometricPersonType);
                     setEnrollPersonId('');
                     setEnrollStatus('idle');
                     setEnrollMsg('');
                   }}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg font-semibold text-gray-800"
                 >
-                  <option value="trainee">Trainee</option>
+                  <option value="trainee">Trainee (Client)</option>
                   <option value="trainer">Trainer</option>
+                  <option value="staff">Employee (Staff)</option>
                 </select>
               </div>
               <div>

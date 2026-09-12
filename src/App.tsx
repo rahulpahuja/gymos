@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
+import { BiometricPunchToast } from './components/common/BiometricPunchToast';
 import { PTHub } from './components/pt/PTHub';
 import { AdminDashboard } from './components/dashboard/AdminDashboard';
 import { ManagerDashboard } from './components/dashboard/ManagerDashboard';
@@ -84,6 +85,7 @@ export default function App() {
     return sessionStorage.getItem('fitos_demo_mode') === 'true';
   });
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState<number>(0);
+  const [staffAccounts, setStaffAccounts] = useState<UserAccount[]>([]);
 
   // Reactive state from storageService
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -168,6 +170,7 @@ export default function App() {
           unsubUsers = firebaseAuthService.subscribeAllUsers((allUsers) => {
             const pendingCount = allUsers.filter((u) => u.status === 'pending').length;
             setPendingApprovalsCount(pendingCount);
+            setStaffAccounts(allUsers.filter((u) => u.status === 'approved' && (u.role === 'admin' || u.role === 'manager')));
           });
         }
       } else {
@@ -319,6 +322,7 @@ export default function App() {
   if (isPortalRole && !isDemoMode) {
     return (
       <div className="min-h-screen w-full bg-[#F3F4F6] dark:bg-slate-950 text-gray-900 dark:text-slate-100 font-sans antialiased transition-colors">
+        <BiometricPunchToast />
         <header className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">
@@ -396,6 +400,7 @@ export default function App() {
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F3F4F6] dark:bg-slate-950 transition-colors">
+        <BiometricPunchToast />
         {/* Top Header */}
         <Header
           currentRole={currentRole}
@@ -551,6 +556,7 @@ export default function App() {
                 branches={branches}
                 trainees={scopedTrainees}
                 trainers={scopedTrainers}
+                staff={staffAccounts}
                 currentTheme={theme}
                 onToggleTheme={handleToggleTheme}
                 currentUser={currentUserAccount}

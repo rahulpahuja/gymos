@@ -1,17 +1,18 @@
 /**
  * Biometric & Fingerprint Integration Adapter (Sections 21, 22)
- * Hardware abstraction layer:
- * AttendanceDeviceAdapter -> FingerprintDeviceAdapter
- * Supports local desktop/service bridge or USB vendor SDK/API.
+ * Talks over HTTP/SSE to the local `biometric-bridge` service (see
+ * /biometric-bridge in the repo root), which itself speaks the native ZK
+ * protocol to the ESSL fingerprint terminal. No hardware access happens in
+ * the browser directly — this is a thin client for that bridge's REST API.
  */
 
-import { BiometricBridgeConfig, BiometricEnrollment } from '../types';
+import { BiometricBridgeConfig, BiometricEnrollment, BiometricPersonType, BiometricPunchEvent } from '../types';
 import { storageService, DEFAULT_BIOMETRIC_CONFIG } from './storageService';
 
 export interface BiometricScanResult {
   success: boolean;
   personId?: string;
-  personType?: 'trainee' | 'trainer';
+  personType?: BiometricPersonType;
   personName?: string;
   confidenceScore?: number;
   deviceId: string;
@@ -22,32 +23,42 @@ export interface BiometricScanResult {
 export interface BiometricEnrollResult {
   success: boolean;
   templateId?: string;
+  deviceUserId?: string;
   confidenceScore?: number;
   deviceId: string;
   timestamp: string;
   error?: string;
 }
 
-export interface AttendanceDeviceAdapter {
-  connect(): Promise<boolean>;
-  disconnect(): Promise<boolean>;
-  isConnected(): boolean;
-  scanFingerprint(): Promise<BiometricScanResult>;
-  getDeviceStatus(): {
-    model: string;
-    serialNumber: string;
-    firmware: string;
-    port: string;
-    status: 'connected' | 'disconnected' | 'scanning' | 'error';
-  };
+export interface BiometricSyncResult {
+  success: boolean;
+  records: BiometricPunchEvent[];
+  count: number;
+  error?: string;
 }
 
-export class FingerprintDeviceAdapter implements AttendanceDeviceAdapter {
-  private connected: boolean = true;
-  private currentStatus: 'connected' | 'disconnected' | 'scanning' | 'error' = 'connected';
-  private serialNumber: string = 'SG-2026-IND-9021';
-  private firmware: string = 'v4.8.2-bridge';
+export interface BiometricActionResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface DeviceStatus {
+  model: string;
+  firmware: string;
+  serialNumber: string;
+  port: string;
+  userCount?: number;
+  status: 'connected' | 'disconnected' | 'connecting' | 'error';
+}
+
+export class FingerprintDeviceAdapter {
   private config: BiometricBridgeConfig = DEFAULT_BIOMETRIC_CONFIG;
+  private connected = false;
+  private currentStatus: DeviceStatus['status'] = 'disconnected';
+  private firmware = '';
+  private serialNumber = '';
+  private userCount: number | undefined;
+  private liveSource: EventSource | null = null;
 
   constructor() {
     try {
@@ -70,115 +81,253 @@ export class FingerprintDeviceAdapter implements AttendanceDeviceAdapter {
     if (urlChanged) {
       this.connected = false;
       this.currentStatus = 'disconnected';
+      this.stopLiveFeed();
     }
     return { ...this.config };
   }
 
-  private validateUrl(): boolean {
+  private baseUrl(): string {
+    return this.config.bridgeUrl.trim().replace(/\/+$/, '');
+  }
+
+  private validUrl(): boolean {
     try {
       const url = new URL(this.config.bridgeUrl);
-      return url.protocol === 'ws:' || url.protocol === 'wss:';
+      return url.protocol === 'http:' || url.protocol === 'https:';
     } catch {
       return false;
     }
   }
 
-  async connect(): Promise<boolean> {
-    if (!this.validateUrl()) {
-      this.connected = false;
-      this.currentStatus = 'error';
-      return false;
+  private async request<T>(path: string, init?: RequestInit, timeoutMs = 15000): Promise<T> {
+    if (!this.validUrl()) {
+      throw new Error('Bridge URL must be a valid http:// or https:// address.');
     }
-    // Simulate the bridge handshake latency.
-    await new Promise((res) => setTimeout(res, 350));
-    this.connected = true;
-    this.currentStatus = 'connected';
-    return true;
-  }
-
-  async disconnect(): Promise<boolean> {
-    this.connected = false;
-    this.currentStatus = 'disconnected';
-    return true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${this.baseUrl()}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok && !('error' in body)) {
+        throw new Error(`Bridge responded with HTTP ${res.status}`);
+      }
+      return body as T;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   isConnected(): boolean {
     return this.connected;
   }
 
-  getDeviceStatus() {
+  getDeviceStatus(): DeviceStatus {
     return {
       model: this.config.deviceModel,
-      serialNumber: this.serialNumber,
-      firmware: this.firmware,
+      firmware: this.firmware || 'unknown',
+      serialNumber: this.serialNumber || 'unknown',
       port: this.config.bridgeUrl,
+      userCount: this.userCount,
       status: this.currentStatus,
     };
   }
 
-  async scanFingerprint(mockPerson?: { id: string; name: string; type: 'trainee' | 'trainer' }): Promise<BiometricScanResult> {
-    if (!this.connected) {
-      return {
-        success: false,
-        deviceId: this.serialNumber,
-        timestamp: new Date().toLocaleTimeString(),
-        error: 'Device Bridge not connected. Please check USB connection.',
-      };
+  async connect(): Promise<boolean> {
+    this.currentStatus = 'connecting';
+    try {
+      const data = await this.request<{
+        success: boolean;
+        firmware?: string;
+        serialNumber?: string;
+        userCount?: number;
+        error?: string;
+      }>('/api/status');
+      if (!data.success) {
+        this.connected = false;
+        this.currentStatus = 'error';
+        return false;
+      }
+      this.connected = true;
+      this.currentStatus = 'connected';
+      this.firmware = data.firmware || '';
+      this.serialNumber = data.serialNumber || '';
+      this.userCount = data.userCount;
+      return true;
+    } catch {
+      this.connected = false;
+      this.currentStatus = 'error';
+      return false;
     }
-
-    this.currentStatus = 'scanning';
-    // Simulate biometric capture delay
-    await new Promise((res) => setTimeout(res, 600));
-    this.currentStatus = 'connected';
-
-    if (mockPerson) {
-      return {
-        success: true,
-        personId: mockPerson.id,
-        personName: mockPerson.name,
-        personType: mockPerson.type,
-        confidenceScore: 98.4,
-        deviceId: this.serialNumber,
-        timestamp: new Date().toLocaleTimeString(),
-      };
-    }
-
-    return {
-      success: true,
-      personId: 'trainee-1',
-      personName: 'Rahul Malhotra',
-      personType: 'trainee',
-      confidenceScore: 99.1,
-      deviceId: this.serialNumber,
-      timestamp: new Date().toLocaleTimeString(),
-    };
   }
 
-  /** Capture a fresh fingerprint template for a person and hand it back for persistence. */
+  async disconnect(): Promise<boolean> {
+    this.connected = false;
+    this.currentStatus = 'disconnected';
+    this.stopLiveFeed();
+    return true;
+  }
+
+  /** Re-reads device info without dropping the "configured" state. */
+  async refreshDevice(): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; firmware?: string; serialNumber?: string; userCount?: number; error?: string }>(
+        '/api/refresh',
+        { method: 'POST' }
+      );
+      if (data.success) {
+        this.connected = true;
+        this.currentStatus = 'connected';
+        this.firmware = data.firmware || this.firmware;
+        this.serialNumber = data.serialNumber || this.serialNumber;
+        this.userCount = data.userCount;
+      }
+      return { success: data.success, error: data.error };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Refresh failed.' };
+    }
+  }
+
+  /** Pulls any attendance punches from the device not yet delivered to gymos. */
+  async synchronize(): Promise<BiometricSyncResult> {
+    try {
+      const data = await this.request<{ success: boolean; records?: BiometricPunchEvent[]; count?: number; error?: string }>(
+        '/api/sync',
+        { method: 'POST' },
+        30000
+      );
+      return { success: data.success, records: data.records || [], count: data.count || 0, error: data.error };
+    } catch (e) {
+      return { success: false, records: [], count: 0, error: e instanceof Error ? e.message : 'Synchronize failed.' };
+    }
+  }
+
+  /** Pulses the door relay for `seconds`. Only works if this device model has one wired. */
+  async forceOpen(seconds = 3): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; error?: string }>(
+        '/api/force-open',
+        { method: 'POST', body: JSON.stringify({ seconds }) },
+        10000
+      );
+      return data;
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Force-open failed.' };
+    }
+  }
+
+  /** Capture a fresh fingerprint template for a person on the device. Blocks while they scan. */
   async enrollFingerprint(person: {
     id: string;
     name: string;
-    type: 'trainee' | 'trainer';
+    type: BiometricPersonType;
   }): Promise<BiometricEnrollResult> {
     if (!this.connected) {
       return {
         success: false,
-        deviceId: this.serialNumber,
+        deviceId: this.serialNumber || 'unknown',
         timestamp: new Date().toISOString(),
         error: 'Device Bridge not connected. Open the connection before enrolling.',
       };
     }
+    try {
+      const data = await this.request<{ success: boolean; templateId?: string; deviceUserId?: string; error?: string }>(
+        '/api/enroll',
+        {
+          method: 'POST',
+          body: JSON.stringify({ personId: person.id, personName: person.name, personType: person.type }),
+        },
+        35000
+      );
+      return {
+        success: data.success,
+        templateId: data.templateId,
+        deviceUserId: data.deviceUserId,
+        deviceId: this.serialNumber || 'unknown',
+        timestamp: new Date().toISOString(),
+        error: data.error,
+      };
+    } catch (e) {
+      return {
+        success: false,
+        deviceId: this.serialNumber || 'unknown',
+        timestamp: new Date().toISOString(),
+        error: e instanceof Error ? e.message : 'Enrollment failed.',
+      };
+    }
+  }
 
-    this.currentStatus = 'scanning';
-    await new Promise((res) => setTimeout(res, 900));
-    this.currentStatus = 'connected';
+  async removeEnrollment(personId: string): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; error?: string }>(`/api/enroll/${encodeURIComponent(personId)}`, {
+        method: 'DELETE',
+      });
+      return data;
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Removal failed.' };
+    }
+  }
 
+  /** Subscribes to real-time punch events from the bridge (SSE). Returns an unsubscribe function. */
+  subscribeLive(onEvent: (event: BiometricPunchEvent) => void, onError?: (err: string) => void): () => void {
+    if (!this.validUrl()) {
+      onError?.('Bridge URL must be a valid http:// or https:// address.');
+      return () => {};
+    }
+    this.stopLiveFeed();
+    try {
+      const source = new EventSource(`${this.baseUrl()}/api/stream`);
+      source.onmessage = (msg) => {
+        try {
+          const event = JSON.parse(msg.data) as BiometricPunchEvent;
+          onEvent(event);
+        } catch {
+          // ignore malformed frame
+        }
+      };
+      source.onerror = () => {
+        onError?.('Live punch feed disconnected. It will keep retrying.');
+      };
+      this.liveSource = source;
+    } catch (e) {
+      onError?.(e instanceof Error ? e.message : 'Could not open live feed.');
+    }
+    return () => this.stopLiveFeed();
+  }
+
+  private stopLiveFeed() {
+    if (this.liveSource) {
+      this.liveSource.close();
+      this.liveSource = null;
+    }
+  }
+
+  /**
+   * Manual/demo punch simulator — does NOT touch real hardware. Used by the
+   * "Simulate Biometric Scan" testing UI for demo mode or when no physical
+   * device is on hand. Real punches arrive via subscribeLive() instead.
+   */
+  async simulateScan(mockPerson?: { id: string; name: string; type: BiometricPersonType }): Promise<BiometricScanResult> {
+    await new Promise((res) => setTimeout(res, 600));
+    if (!mockPerson) {
+      return {
+        success: false,
+        deviceId: 'SIMULATED',
+        timestamp: new Date().toLocaleTimeString(),
+        error: 'Select a person to simulate.',
+      };
+    }
     return {
       success: true,
-      templateId: `tpl-${person.type}-${person.id}-${Date.now().toString(36)}`,
-      confidenceScore: 97 + Math.round(Math.random() * 25) / 10,
-      deviceId: this.serialNumber,
-      timestamp: new Date().toISOString(),
+      personId: mockPerson.id,
+      personName: mockPerson.name,
+      personType: mockPerson.type,
+      confidenceScore: 98.4,
+      deviceId: 'SIMULATED',
+      timestamp: new Date().toLocaleTimeString(),
     };
   }
 }
@@ -186,7 +335,7 @@ export class FingerprintDeviceAdapter implements AttendanceDeviceAdapter {
 export const biometricBridge = new FingerprintDeviceAdapter();
 
 export function buildEnrollment(
-  person: { id: string; name: string; type: 'trainee' | 'trainer' },
+  person: { id: string; name: string; type: BiometricPersonType },
   result: BiometricEnrollResult
 ): BiometricEnrollment {
   return {
@@ -194,7 +343,7 @@ export function buildEnrollment(
     personName: person.name,
     personType: person.type,
     templateId: result.templateId || '',
-    confidenceScore: result.confidenceScore || 0,
+    confidenceScore: result.confidenceScore || 100,
     enrolledAt: result.timestamp,
   };
 }

@@ -52,8 +52,8 @@ const STORAGE_KEYS = {
 };
 
 export const DEFAULT_BIOMETRIC_CONFIG: BiometricBridgeConfig = {
-  bridgeUrl: 'ws://127.0.0.1:8088/biometric-bridge',
-  deviceModel: 'SecuGen Hamster Pro 20',
+  bridgeUrl: 'http://192.168.1.201:8090',
+  deviceModel: 'ESSL Biometric Terminal',
   autoTurnstile: true,
 };
 

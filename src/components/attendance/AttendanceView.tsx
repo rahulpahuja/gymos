@@ -74,7 +74,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
       personObj = type === 'trainee' ? trainees[0] : trainers[0];
     }
 
-    const result = await biometricBridge.scanFingerprint(
+    const result = await biometricBridge.simulateScan(
       personObj ? { id: personObj.id, name: personObj.fullName, type } : undefined
     );
 
@@ -88,7 +88,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
         id: `att-${Date.now()}`,
         personId: result.personId,
         personName: result.personName,
-        personType: result.personType || type,
+        personType: type,
         branchId: 'branch-1',
         date: today,
         checkInTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

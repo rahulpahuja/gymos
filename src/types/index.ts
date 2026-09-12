@@ -502,11 +502,23 @@ export interface BiometricBridgeConfig {
   autoTurnstile: boolean;
 }
 
+export type BiometricPersonType = 'trainee' | 'trainer' | 'staff';
+
 export interface BiometricEnrollment {
   personId: string;
   personName: string;
-  personType: 'trainee' | 'trainer';
+  personType: BiometricPersonType;
   templateId: string;
   confidenceScore: number;
   enrolledAt: string;
+}
+
+export interface BiometricPunchEvent {
+  deviceUserId: string;
+  personId?: string;
+  personName?: string;
+  personType?: BiometricPersonType;
+  timestamp: string;
+  punch: number;
+  status: number;
 }

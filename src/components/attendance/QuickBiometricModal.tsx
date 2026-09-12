@@ -61,7 +61,7 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
         ? trainees.find((t) => t.id === selectedPersonId) || trainees[0]
         : trainers.find((t) => t.id === selectedPersonId) || trainers[0];
 
-    const result = await biometricBridge.scanFingerprint(
+    const result = await biometricBridge.simulateScan(
       personObj ? { id: personObj.id, name: personObj.fullName, type: personType } : undefined
     );
 
