@@ -220,15 +220,47 @@ export const firebaseAuthService = {
       const userRef = doc(db, 'users', firebaseUser.uid);
       const unsubscribeUserDoc = onSnapshot(
         userRef,
-        (snap) => {
+        async (snap) => {
           if (snap.exists()) {
             callback(snap.data() as UserAccount, false);
             return;
           }
           // No profile doc: either it hasn't been written yet (brand-new
-          // sign-in) or an admin removed it (access revoked).
+          // sign-in), an admin removed it (access revoked), or this email was
+          // pre-authorized before ever signing in — check that regardless of
+          // which sign-in path got us here (fresh button click vs. an
+          // already-persisted session just reconnecting).
           const email = (firebaseUser.email || '').toLowerCase();
           const isOwner = SUPER_ADMIN_EMAILS.includes(email);
+
+          if (!isOwner) {
+            try {
+              const preAuthRef = doc(db, PREAUTH_COLLECTION, email);
+              const preAuthSnap = await getDoc(preAuthRef);
+              if (preAuthSnap.exists()) {
+                const preAuth = preAuthSnap.data() as { role: UserRole; branchId: string; approvedBy?: string };
+                const approvedAccount: UserAccount = {
+                  id: firebaseUser.uid,
+                  email: firebaseUser.email || '',
+                  displayName: firebaseUser.displayName || 'Staff Member',
+                  photoURL: firebaseUser.photoURL || '',
+                  role: preAuth.role,
+                  branchId: preAuth.branchId,
+                  status: 'approved',
+                  approvedBy: preAuth.approvedBy || 'Pre-authorized',
+                  approvedAt: new Date().toISOString(),
+                  createdAt: new Date().toISOString(),
+                };
+                await setDoc(userRef, approvedAccount);
+                await deleteDoc(preAuthRef); // consume it — one-time use
+                callback(approvedAccount, false);
+                return;
+              }
+            } catch (e) {
+              console.warn('[Firebase Auth] Pre-authorization check failed, falling back to normal flow:', e);
+            }
+          }
+
           const meta = firebaseUser.metadata;
           const brandNew =
             !meta?.creationTime ||
