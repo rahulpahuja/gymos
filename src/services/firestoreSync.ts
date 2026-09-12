@@ -49,9 +49,6 @@ class FirestoreSyncService {
     this.isInitialized = true;
 
     try {
-      // First check if any collection is empty, and seed Firestore if needed
-      await this.seedEmptyCollections();
-
       // Start real-time onSnapshot listeners for each collection (remote -> local)
       for (const col of COLLECTIONS) {
         const colRef = collection(db, col.firestore);
@@ -64,11 +61,12 @@ class FirestoreSyncService {
             });
             this.remoteIds.set(col.firestore, new Set(items.map((i) => String(i.id))));
 
-            if (snapshot.empty) {
-              // Don't wipe the local seed just because the remote collection is empty
-              return;
-            }
-
+            // Firestore is the source of truth for every browser's local cache —
+            // including when it's genuinely empty. (Real accounts no longer get
+            // auto-seeded locally, so there's no legitimate local-only data left
+            // to protect here; skipping the write on an empty snapshot used to
+            // leave every OTHER open browser's stale cache uncleared forever
+            // after a real deletion.)
             this.isSyncingFromRemote = true;
             localStorage.setItem(col.localKey, JSON.stringify(items));
             storageService.notify(col.localKey);
@@ -138,37 +136,8 @@ class FirestoreSyncService {
     }
   }
 
-  // Seed remote Firestore from local data if Firestore is fresh
-  private async seedEmptyCollections(): Promise<void> {
-    try {
-      for (const col of COLLECTIONS) {
-        const colRef = collection(db, col.firestore);
-        const snapshot = await getDocs(colRef);
-
-        if (snapshot.empty) {
-          const localData = col.getLocal();
-          if (localData && localData.length > 0) {
-            console.log(`[FirestoreSync] Seeding ${col.firestore} with ${localData.length} records...`);
-            const batch = writeBatch(db);
-            // Stay under the 500-op batch limit
-            const toSeed = localData.slice(0, 450);
-            for (const item of toSeed) {
-              if (item.id) {
-                const docRef = doc(db, col.firestore, item.id);
-                batch.set(docRef, item);
-              }
-            }
-            await batch.commit();
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('[FirestoreSync] Firestore seeding check skipped or permission pending:', error);
-    }
-  }
-
   // Deletes every document in every synced collection — used to clean up fake
-  // seed data that seedEmptyCollections() previously pushed up for a real
+  // seed data an earlier version of this service used to auto-push for a real
   // account before that was fixed.
   //
   // Stops the realtime listeners FIRST: while they're active, every
