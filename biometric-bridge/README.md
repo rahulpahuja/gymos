@@ -91,7 +91,17 @@ Environment variables (all optional, shown with defaults):
   not a bug here.
 - `GET /api/stream` — Server-Sent Events feed of real-time punches as they
   happen on the device, so gymos can show the same instant popup (ID, name,
-  time) that EasyBio showed.
+  date/time, membership validity) that EasyBio showed.
+- `POST /api/validity` — `{personId, validity: {status, label}}`. gymos pushes
+  a membership-validity snapshot here whenever it enrolls/links someone and
+  whenever Synchronize runs, so live punches can show it. This is a cached
+  snapshot on the bridge, not a live lookup — it's only as fresh as the last
+  push from gymos.
+
+Every real-time punch also triggers a **native Windows toast notification**
+(name, date/time, and validity if known) via a PowerShell/WinRT call — no
+extra dependency, and no browser tab needs to be open for it to show. It's a
+no-op on non-Windows machines.
 
 ## Why this exists instead of talking to the EasyBio dashboard directly
 

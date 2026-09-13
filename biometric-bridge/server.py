@@ -37,6 +37,7 @@ import json
 import os
 import queue
 import socket
+import subprocess
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -125,6 +126,37 @@ def with_device(fn, timeout=8):
         _live_paused_ack.clear()
 
 
+def show_windows_toast(title, message):
+    """Native OS notification for a live punch — shows even when no browser
+    tab has gymos open, matching what EasyBio's toaster.py did. Windows only;
+    a no-op elsewhere. Shells out to PowerShell's WinRT toast API instead of
+    adding a pip dependency, since powershell.exe ships with every Windows box."""
+    if os.name != "nt":
+        return
+    try:
+        safe_title = title.replace('"', "'")
+        safe_message = message.replace('"', "'")
+        ps_script = (
+            "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, "
+            "ContentType=WindowsRuntime] | Out-Null; "
+            "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, "
+            "ContentType=WindowsRuntime] | Out-Null; "
+            "$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; "
+            "$xml.LoadXml('<toast><visual><binding template=\"ToastGeneric\">"
+            f"<text>{safe_title}</text><text>{safe_message}</text>"
+            "</binding></visual></toast>'); "
+            "$toast = New-Object Windows.UI.Notifications.ToastNotification $xml; "
+            "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier"
+            "('gymos biometric bridge').Show($toast)"
+        )
+        subprocess.Popen(
+            ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps_script],
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except Exception as e:
+        print(f"[bridge] Toast notification failed (non-fatal): {e}")
+
+
 def _mark_seen(iso_timestamp):
     state = load_state()
     if not state.get("lastTimestamp") or iso_timestamp > state["lastTimestamp"]:
@@ -163,17 +195,26 @@ def _live_capture_loop():
                 by_device_id = {v.get("deviceUserId"): v for v in mapping.values()}
                 person = by_device_id.get(str(att.user_id), {})
                 iso_ts = att.timestamp.isoformat()
+                person_name = person.get("personName") or f"Unknown device ID {att.user_id}"
+                validity = person.get("validity")
                 event = {
                     "deviceUserId": str(att.user_id),
                     "personId": person.get("personId"),
-                    "personName": person.get("personName") or f"Unknown device ID {att.user_id}",
+                    "personName": person_name,
                     "personType": person.get("personType"),
                     "timestamp": iso_ts,
                     "punch": att.punch,
                     "status": att.status,
+                    "validity": validity,
                 }
                 _mark_seen(iso_ts)
                 _broadcast(event)
+
+                punch_label = "Checked out" if att.punch == 1 else "Checked in"
+                toast_lines = [f"{punch_label} at {att.timestamp.strftime('%d %b %Y, %I:%M %p')}"]
+                if validity and validity.get("label"):
+                    toast_lines.append(str(validity["label"]))
+                show_windows_toast(person_name, "\n".join(toast_lines))
             try:
                 conn.disconnect()
             except Exception:
@@ -335,6 +376,31 @@ def link_user():
         "personName": person_name,
         "personType": person_type,
         "enrolledAt": datetime.utcnow().isoformat(),
+    }
+    save_mapping(mapping)
+    return jsonify({"success": True})
+
+
+@app.route("/api/validity", methods=["POST"])
+def set_validity():
+    """gymos pushes a membership-validity snapshot for an enrolled person here
+    (e.g. right after enrolling/linking them, and again whenever Synchronize
+    runs) so the live-punch toast can show it without the bridge needing its
+    own connection to gymos's actual membership data. This is a cached
+    snapshot, not a live lookup — it's only as fresh as the last push."""
+    body = request.get_json(force=True) or {}
+    person_id = body.get("personId")
+    validity = body.get("validity")
+    if not person_id or not isinstance(validity, dict):
+        return jsonify({"success": False, "error": "personId and validity are required"}), 400
+
+    mapping = load_mapping()
+    if person_id not in mapping:
+        return jsonify({"success": False, "error": "That person isn't enrolled/linked on this bridge yet"}), 404
+
+    mapping[person_id]["validity"] = {
+        "status": validity.get("status"),
+        "label": validity.get("label"),
     }
     save_mapping(mapping)
     return jsonify({"success": True})

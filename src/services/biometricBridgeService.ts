@@ -6,8 +6,28 @@
  * the browser directly — this is a thin client for that bridge's REST API.
  */
 
-import { BiometricBridgeConfig, BiometricDeviceUser, BiometricEnrollment, BiometricPersonType, BiometricPunchEvent } from '../types';
+import { BiometricBridgeConfig, BiometricDeviceUser, BiometricEnrollment, BiometricPersonType, BiometricPunchEvent, BiometricValidity, Trainee } from '../types';
 import { storageService, DEFAULT_BIOMETRIC_CONFIG } from './storageService';
+
+/** Real membership validity from a trainee's actual plan/status fields — not a placeholder. */
+export function computeTraineeValidity(trainee: Trainee): BiometricValidity {
+  if (trainee.status === 'suspended') return { status: 'suspended', label: 'Suspended' };
+  if (trainee.status === 'cancelled') return { status: 'cancelled', label: 'Cancelled' };
+
+  const expiry = trainee.generalMembershipExpiryDate || trainee.membershipExpiry;
+  if (expiry) {
+    const expiryDate = new Date(expiry);
+    if (!isNaN(expiryDate.getTime())) {
+      const dateLabel = expiryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      return expiryDate.getTime() < Date.now()
+        ? { status: 'expired', label: `Expired ${dateLabel}` }
+        : { status: 'active', label: `Active until ${dateLabel}` };
+    }
+  }
+
+  if (trainee.status === 'active') return { status: 'active', label: 'Active' };
+  return { status: 'inactive', label: 'No active membership plan' };
+}
 
 export interface BiometricScanResult {
   success: boolean;
@@ -347,6 +367,21 @@ export class FingerprintDeviceAdapter {
       return data;
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Linking failed.' };
+    }
+  }
+
+  /** Pushes a membership-validity snapshot to the bridge so its live-punch
+   * toast (including the native Windows notification) can show it. Cached on
+   * the bridge, not a live lookup — re-push whenever it might have changed. */
+  async pushValidity(personId: string, validity: BiometricValidity): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; error?: string }>('/api/validity', {
+        method: 'POST',
+        body: JSON.stringify({ personId, validity }),
+      });
+      return data;
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Could not push validity.' };
     }
   }
 

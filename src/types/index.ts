@@ -525,6 +525,11 @@ export interface BiometricDeviceUser {
   personType: BiometricPersonType | null;
 }
 
+export interface BiometricValidity {
+  status: 'active' | 'expired' | 'suspended' | 'cancelled' | 'inactive';
+  label: string;
+}
+
 export interface BiometricPunchEvent {
   deviceUserId: string;
   personId?: string;
@@ -533,4 +538,5 @@ export interface BiometricPunchEvent {
   timestamp: string;
   punch: number;
   status: number;
+  validity?: BiometricValidity | null;
 }

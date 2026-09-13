@@ -1,17 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Fingerprint, LogIn, LogOut, ShieldAlert } from 'lucide-react';
-import { biometricBridge } from '../../services/biometricBridgeService';
+import { biometricBridge, computeTraineeValidity } from '../../services/biometricBridgeService';
 import { storageService } from '../../services/storageService';
 import { BiometricPunchEvent } from '../../types';
 
 /**
  * Global listener for real punches coming off the physical ESSL terminal via
  * the biometric-bridge service. Mirrors the popup EasyBio used to show
- * (person ID, name, punch time) and records the attendance entry itself, so
- * this works everywhere in the app without any screen needing to be open.
+ * (person ID, name, punch time, membership validity) and records the
+ * attendance entry itself, so this works everywhere in the app without any
+ * screen needing to be open.
  */
 export const BiometricPunchToast: React.FC = () => {
-  const [toast, setToast] = useState<(BiometricPunchEvent & { denied: boolean }) | null>(null);
+  const [toast, setToast] = useState<(BiometricPunchEvent & { denied: boolean; validityLabel?: string }) | null>(null);
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -42,7 +43,16 @@ export const BiometricPunchToast: React.FC = () => {
             deviceId: event.deviceUserId,
           });
         }
-        setToast({ ...event, denied });
+
+        // Prefer a fresh computation from gymos's own live trainee data over
+        // the bridge's cached snapshot, since gymos is the source of truth.
+        let validityLabel = event.validity?.label || undefined;
+        if (event.personId && (!event.personType || event.personType === 'trainee')) {
+          const trainee = storageService.getTrainees().find((t) => t.id === event.personId);
+          if (trainee) validityLabel = computeTraineeValidity(trainee).label;
+        }
+
+        setToast({ ...event, denied, validityLabel });
         if (dismissTimer.current) clearTimeout(dismissTimer.current);
         dismissTimer.current = setTimeout(() => setToast(null), 6000);
       });
@@ -58,7 +68,13 @@ export const BiometricPunchToast: React.FC = () => {
   if (!toast) return null;
 
   const isCheckOut = toast.punch === 1; // ZK protocol: 0 = check-in, 1 = check-out
-  const time = new Date(toast.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateTime = new Date(toast.timestamp).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   return (
     <div className="fixed top-4 right-4 z-[100] animate-in fade-in slide-in-from-top-4 duration-200">
@@ -85,10 +101,13 @@ export const BiometricPunchToast: React.FC = () => {
               <>
                 {isCheckOut ? <LogOut className="w-3 h-3" /> : <LogIn className="w-3 h-3" />}
                 <span className="font-semibold">{isCheckOut ? 'Checked out' : 'Checked in'}</span>
-                <span>• {time}</span>
+                <span>• {dateTime}</span>
               </>
             )}
           </div>
+          {toast.validityLabel && (
+            <div className="text-[11px] font-semibold text-indigo-600 mt-0.5">{toast.validityLabel}</div>
+          )}
           {toast.personId && (
             <div className="text-gray-400 font-mono text-[10px] mt-0.5">ID: {toast.personId}</div>
           )}

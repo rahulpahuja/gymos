@@ -31,7 +31,7 @@ import {
 } from 'lucide-react';
 import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, BiometricDeviceUser, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
-import { biometricBridge, buildEnrollment } from '../../services/biometricBridgeService';
+import { biometricBridge, buildEnrollment, computeTraineeValidity } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
 import { firestoreSync } from '../../services/firestoreSync';
 import { backupService, BackupEnvelope } from '../../services/backupService';
@@ -247,6 +247,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           u.uid === uid ? { ...u, linked: true, personId: person.id, personName: person.fullName, personType: draft.type } : u
         )
       );
+      if (draft.type === 'trainee') {
+        const trainee = trainees.find((t) => t.id === person.id);
+        if (trainee) biometricBridge.pushValidity(trainee.id, computeTraineeValidity(trainee));
+      }
     } else {
       setDeviceUsersMsg(result.error || 'Linking failed.');
     }
@@ -323,6 +327,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const handleSynchronize = async () => {
     setActionBusy('sync');
     setActionMsg(null);
+
+    // Refresh cached membership-validity snapshots on the bridge for every
+    // enrolled trainee, so the live-punch toast doesn't show stale plan info.
+    const currentEnrollmentsForValidity = storageService.getBiometricEnrollments();
+    for (const en of currentEnrollmentsForValidity) {
+      if (en.personType !== 'trainee') continue;
+      const trainee = trainees.find((t) => t.id === en.personId);
+      if (trainee) biometricBridge.pushValidity(trainee.id, computeTraineeValidity(trainee));
+    }
+
     const result = await biometricBridge.synchronize();
     if (result.success) {
       const today = new Date().toISOString().substring(0, 10);
@@ -399,6 +413,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setEnrollments(storageService.getBiometricEnrollments());
       setEnrollStatus('success');
       setEnrollMsg(`Saved fingerprint for ${person.fullName} on the device.`);
+      if (enrollType === 'trainee') {
+        const trainee = trainees.find((t) => t.id === person.id);
+        if (trainee) biometricBridge.pushValidity(trainee.id, computeTraineeValidity(trainee));
+      }
     } else {
       setEnrollStatus('error');
       setEnrollMsg(result.error || 'Capture failed. Reposition the finger and retry.');
