@@ -22,6 +22,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { UserAccount, UserRole, UserApprovalStatus } from '../types';
+import { storageService } from './storageService';
 
 // Firebase client web config — sourced from Vite env vars (see .env.example).
 const firebaseConfig = {
@@ -370,6 +371,13 @@ export const firebaseAuthService = {
       approvedBy: approverName,
       createdAt: new Date().toISOString(),
     });
+    storageService.logAudit(
+      'Staff Pre-Authorized',
+      'UserAccount',
+      normalizedEmail,
+      branchId,
+      `Pre-authorized ${normalizedEmail} as ${role} — will be auto-approved on next sign-in`
+    );
   },
 
   async approveUser(
@@ -377,7 +385,8 @@ export const firebaseAuthService = {
     role: UserRole,
     branchId: string,
     approverName: string,
-    links?: { linkedTrainerId?: string; linkedTraineeId?: string }
+    links?: { linkedTrainerId?: string; linkedTraineeId?: string },
+    targetLabel?: string
   ): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
@@ -389,10 +398,17 @@ export const firebaseAuthService = {
       linkedTrainerId: role === 'trainer' ? links?.linkedTrainerId || '' : '',
       linkedTraineeId: role === 'trainee' ? links?.linkedTraineeId || '' : '',
     });
+    storageService.logAudit(
+      'User Approved',
+      'UserAccount',
+      userId,
+      branchId,
+      `Approved ${targetLabel || userId} as ${role}`
+    );
   },
 
   // Reject a user
-  async rejectUser(userId: string, reason: string, approverName: string): Promise<void> {
+  async rejectUser(userId: string, reason: string, approverName: string, targetLabel?: string): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       status: 'rejected',
@@ -400,6 +416,13 @@ export const firebaseAuthService = {
       approvedBy: approverName,
       approvedAt: new Date().toISOString(),
     });
+    storageService.logAudit(
+      'User Rejected',
+      'UserAccount',
+      userId,
+      'all',
+      `Rejected ${targetLabel || userId}${reason ? ` — ${reason}` : ''}`
+    );
   },
 
   // Update role, branch, and portal record linkage of an approved user
@@ -407,7 +430,8 @@ export const firebaseAuthService = {
     userId: string,
     role: UserRole,
     branchId: string,
-    links?: { linkedTrainerId?: string; linkedTraineeId?: string }
+    links?: { linkedTrainerId?: string; linkedTraineeId?: string },
+    targetLabel?: string
   ): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
@@ -416,10 +440,17 @@ export const firebaseAuthService = {
       linkedTrainerId: role === 'trainer' ? links?.linkedTrainerId || '' : '',
       linkedTraineeId: role === 'trainee' ? links?.linkedTraineeId || '' : '',
     });
+    storageService.logAudit(
+      'User Access Updated',
+      'UserAccount',
+      userId,
+      branchId,
+      `Updated ${targetLabel || userId} to role ${role}, branch ${branchId}`
+    );
   },
 
   // Revoke access (soft): keeps the profile so a re-login stays locked out
-  async revokeUser(userId: string, approverName: string): Promise<void> {
+  async revokeUser(userId: string, approverName: string, targetLabel?: string): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       status: 'rejected',
@@ -429,12 +460,14 @@ export const firebaseAuthService = {
       approvedBy: approverName,
       approvedAt: new Date().toISOString(),
     });
+    storageService.logAudit('User Access Revoked', 'UserAccount', userId, 'all', `Revoked access for ${targetLabel || userId}`);
   },
 
   // Permanently delete the user profile document
-  async deleteUser(userId: string): Promise<void> {
+  async deleteUser(userId: string, targetLabel?: string): Promise<void> {
     const userRef = doc(db, 'users', userId);
     await deleteDoc(userRef);
+    storageService.logAudit('User Deleted', 'UserAccount', userId, 'all', `Permanently deleted profile for ${targetLabel || userId}`);
   },
 
   // Update theme preference in Firestore

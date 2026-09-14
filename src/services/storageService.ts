@@ -27,6 +27,7 @@ import {
   BiometricBridgeConfig,
   BiometricLastStatus,
   BiometricEnrollment,
+  BiometricPersonType,
 } from '../types';
 
 const STORAGE_KEYS = {
@@ -1385,7 +1386,21 @@ class StorageService {
   }
 
   public saveBiometricConfig(config: BiometricBridgeConfig) {
+    // The adapter re-saves this config on every connection attempt, not just
+    // when it actually changes — only audit-log genuine edits, not repeat
+    // "Test Connection" clicks with the same address.
+    const previous = this.getBiometricConfig();
+    const changed = previous.bridgeUrl !== config.bridgeUrl || previous.deviceModel !== config.deviceModel;
     this.setItem(STORAGE_KEYS.BIOMETRIC_CONFIG, config);
+    if (changed) {
+      this.logAudit(
+        'Biometric Bridge Configured',
+        'BiometricBridgeConfig',
+        'bridge-config',
+        'all',
+        `Bridge URL set to ${config.bridgeUrl} (device: ${config.deviceModel})`
+      );
+    }
   }
 
   /** Last-observed bridge connection snapshot — lets the UI warm-start as
@@ -1404,22 +1419,49 @@ class StorageService {
     return this.getItem<BiometricEnrollment[]>(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, []);
   }
 
+  /** BiometricEnrollment has no branchId of its own — resolve it from the
+   * linked trainee/trainer record so enrollment audit entries can still be
+   * filtered by branch like every other log entry. */
+  private resolvePersonBranchId(personId: string, personType: BiometricPersonType): string {
+    if (personType === 'trainee') return this.getTrainees().find((t) => t.id === personId)?.branchId || 'all';
+    if (personType === 'trainer') return this.getTrainers().find((t) => t.id === personId)?.branchId || 'all';
+    return 'all';
+  }
+
   public saveBiometricEnrollment(entry: BiometricEnrollment) {
     const list = this.getBiometricEnrollments();
     const idx = list.findIndex((e) => e.personId === entry.personId);
+    const isNew = idx < 0;
     if (idx >= 0) {
       list[idx] = entry;
     } else {
       list.push(entry);
     }
     this.setItem(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, list);
+    this.logAudit(
+      isNew ? 'Biometric Enrollment Added' : entry.status === 'disabled' ? 'Biometric Access Disabled' : 'Biometric Enrollment Updated',
+      'BiometricEnrollment',
+      entry.personId,
+      this.resolvePersonBranchId(entry.personId, entry.personType),
+      `${entry.personName} (${entry.personType}) fingerprint enrollment ${isNew ? 'added' : entry.status === 'disabled' ? 'disabled' : 'updated'}`
+    );
   }
 
   public deleteBiometricEnrollment(personId: string) {
+    const entry = this.getBiometricEnrollments().find((e) => e.personId === personId);
     this.setItem(
       STORAGE_KEYS.BIOMETRIC_ENROLLMENTS,
       this.getBiometricEnrollments().filter((e) => e.personId !== personId)
     );
+    if (entry) {
+      this.logAudit(
+        'Biometric Enrollment Removed',
+        'BiometricEnrollment',
+        personId,
+        this.resolvePersonBranchId(entry.personId, entry.personType),
+        `Removed fingerprint enrollment for ${entry.personName} (${entry.personType})`
+      );
+    }
   }
 
   // --- Branches ---
@@ -1473,15 +1515,28 @@ class StorageService {
     }));
   }
 
-  public saveTrainer(trainer: Trainer) {
+  /** `silent` skips the audit entry — used when this is a cascading update
+   * from another action (e.g. a commission settlement) that already logs
+   * its own, more specific audit entry. */
+  public saveTrainer(trainer: Trainer, options?: { silent?: boolean }) {
     const list = this.getTrainers();
     const idx = list.findIndex((t) => t.id === trainer.id);
+    const isNew = idx < 0;
     if (idx >= 0) {
       list[idx] = trainer;
     } else {
       list.unshift(trainer);
     }
     this.setItem(STORAGE_KEYS.TRAINERS, list);
+    if (!options?.silent) {
+      this.logAudit(
+        isNew ? 'Trainer Added' : 'Trainer Updated',
+        'Trainer',
+        trainer.id,
+        trainer.branchId,
+        `${isNew ? 'Added' : 'Updated'} trainer profile for ${trainer.fullName}`
+      );
+    }
   }
 
   // --- Trainees ---
@@ -1494,15 +1549,28 @@ class StorageService {
     }));
   }
 
-  public saveTrainee(trainee: Trainee) {
+  /** `silent` skips the audit entry — used when this is a cascading update
+   * from another action (e.g. recording a payment) that already logs its
+   * own, more specific audit entry. */
+  public saveTrainee(trainee: Trainee, options?: { silent?: boolean }) {
     const list = this.getTrainees();
     const idx = list.findIndex((t) => t.id === trainee.id);
+    const isNew = idx < 0;
     if (idx >= 0) {
       list[idx] = trainee;
     } else {
       list.unshift(trainee);
     }
     this.setItem(STORAGE_KEYS.TRAINEES, list);
+    if (!options?.silent) {
+      this.logAudit(
+        isNew ? 'Trainee Added' : 'Trainee Updated',
+        'Trainee',
+        trainee.id,
+        trainee.branchId,
+        `${isNew ? 'Added' : 'Updated'} trainee profile for ${trainee.fullName}`
+      );
+    }
   }
 
   // --- PT Subscriptions (Section 62) ---
@@ -1521,9 +1589,13 @@ class StorageService {
     }));
   }
 
-  public savePTSubscription(sub: PTSubscription) {
+  /** `silent` skips the audit entry — used when this is a cascading update
+   * from another action (e.g. a payment or session completion) that already
+   * logs its own, more specific audit entry. */
+  public savePTSubscription(sub: PTSubscription, options?: { silent?: boolean }) {
     const list = this.getPTSubscriptions();
     const idx = list.findIndex((s) => s.id === sub.id);
+    const isNew = idx < 0;
     if (idx >= 0) {
       list[idx] = sub;
     } else {
@@ -1538,7 +1610,17 @@ class StorageService {
       tr.activePTSubscriptionId = sub.id;
       tr.activePTTrainerName = sub.trainerName;
       tr.activePTPackageName = sub.packageName;
-      this.saveTrainee(tr);
+      this.saveTrainee(tr, { silent: true });
+    }
+
+    if (!options?.silent) {
+      this.logAudit(
+        isNew ? 'PT Subscription Assigned' : 'PT Subscription Updated',
+        'PTSubscription',
+        sub.id,
+        sub.branchId,
+        `${isNew ? 'Assigned' : 'Updated'} ${sub.packageName} for ${sub.traineeName} with trainer ${sub.trainerName}`
+      );
     }
   }
 
@@ -1556,6 +1638,14 @@ class StorageService {
       list.unshift(session);
     }
     this.setItem(STORAGE_KEYS.PT_SESSIONS, list);
+
+    this.logAudit(
+      `PT Session ${session.status.replace('_', ' ')}`,
+      'PTSession',
+      session.id,
+      session.branchId,
+      `${session.traineeName}'s session with ${session.trainerName} on ${session.scheduledDate} marked ${session.status.replace('_', ' ')}`
+    );
 
     // Update Subscription session counters
     this.recalculateSubscriptionSessions(session.subscriptionId);
@@ -1581,7 +1671,7 @@ class StorageService {
       sub.status = 'completed';
     }
 
-    this.savePTSubscription(sub);
+    this.savePTSubscription(sub, { silent: true });
   }
 
   // --- Payments (Sections 60, 69) ---
@@ -1623,7 +1713,7 @@ class StorageService {
     if (tr) {
       tr.totalPaid = (tr.totalPaid || 0) + payment.totalAmount;
       tr.totalDue = Math.max(0, (tr.totalDue || 0) - payment.totalAmount);
-      this.saveTrainee(tr);
+      this.saveTrainee(tr, { silent: true });
     }
 
     // Update PT Subscription if PT allocation exists
@@ -1633,7 +1723,7 @@ class StorageService {
       if (sub) {
         sub.paidAmount = (sub.paidAmount || 0) + payment.allocation.ptAmount;
         sub.dueAmount = Math.max(0, (sub.netPrice || sub.packagePrice || 0) - sub.paidAmount);
-        this.savePTSubscription(sub);
+        this.savePTSubscription(sub, { silent: true });
       }
     }
 
@@ -1664,7 +1754,7 @@ class StorageService {
     if (tr) {
       tr.ptCommissionPaid += settlement.amount;
       tr.ptCommissionOutstanding = Math.max(0, tr.ptCommissionEarned - tr.ptCommissionPaid);
-      this.saveTrainer(tr);
+      this.saveTrainer(tr, { silent: true });
     }
 
     this.logAudit(
@@ -1802,12 +1892,20 @@ class StorageService {
   public saveEnquiry(enquiry: Enquiry) {
     const list = this.getEnquiries();
     const idx = list.findIndex((e) => e.id === enquiry.id);
+    const isNew = idx < 0;
     if (idx >= 0) {
       list[idx] = enquiry;
     } else {
       list.unshift(enquiry);
     }
     this.setItem(STORAGE_KEYS.ENQUIRIES, list);
+    this.logAudit(
+      isNew ? 'Enquiry Logged' : `Enquiry ${enquiry.status.replace('_', ' ')}`,
+      'Enquiry',
+      enquiry.id,
+      enquiry.branchId,
+      `${isNew ? 'New enquiry from' : 'Updated enquiry for'} ${enquiry.name} — status ${enquiry.status.replace('_', ' ')}`
+    );
   }
 
   // --- Audit Logs ---
@@ -1925,7 +2023,7 @@ class StorageService {
       performedBy,
     });
 
-    this.savePTSubscription(sub);
+    this.savePTSubscription(sub, { silent: true });
 
     this.logAudit(
       'Trainer Reassigned',

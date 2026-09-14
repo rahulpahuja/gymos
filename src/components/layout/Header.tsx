@@ -239,33 +239,40 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         )}
 
-        {/* Role Toggle Switcher in Bento Pill Style */}
-        <div className="hidden xl:flex bg-gray-100 dark:bg-slate-800 rounded-full p-0.5 border border-gray-200 dark:border-slate-700">
-          <button
-            onClick={handleRoleToggle}
-            className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
-              effectiveRole === 'admin'
-                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-xs font-semibold'
-                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-            title="Switch between Admin and Manager View"
-          >
-            <Shield className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-            <span>Admin</span>
-          </button>
-          <button
-            onClick={handleRoleToggle}
-            className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
-              effectiveRole === 'manager'
-                ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-xs font-semibold'
-                : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
-            }`}
-            title="Switch between Admin and Manager View"
-          >
-            <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-            <span>Manager</span>
-          </button>
-        </div>
+        {/* Role Toggle Switcher — demo mode only. A signed-in real account's role
+            comes from Firestore and must never be changeable from the client:
+            this used to render unconditionally, letting a real branch manager
+            flip themselves into the Admin view (and, since Firestore rules
+            grant every approved user read/write on operational collections,
+            genuine admin-only actions too — not just a different layout). */}
+        {isDemoMode && (
+          <div className="hidden xl:flex bg-gray-100 dark:bg-slate-800 rounded-full p-0.5 border border-gray-200 dark:border-slate-700">
+            <button
+              onClick={handleRoleToggle}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                effectiveRole === 'admin'
+                  ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-xs font-semibold'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              title="Switch between Admin and Manager View (demo mode only)"
+            >
+              <Shield className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              <span>Admin</span>
+            </button>
+            <button
+              onClick={handleRoleToggle}
+              className={`px-3 py-1 text-xs font-medium rounded-full transition-all flex items-center gap-1.5 cursor-pointer ${
+                effectiveRole === 'manager'
+                  ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-xs font-semibold'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+              title="Switch between Admin and Manager View (demo mode only)"
+            >
+              <UserCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+              <span>Manager</span>
+            </button>
+          </div>
+        )}
 
         {/* Reset Demo Data Button — demo mode only; real accounts must never be able
             to overwrite their live data with sample records from this control. */}

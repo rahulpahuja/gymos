@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { storageService, DEFAULT_BIOMETRIC_CONFIG } from './storageService';
-import { Trainee, Trainer, PaymentTransaction, PTSubscription, PTSession, PTCommissionSettlement, RefundRecord } from '../types';
+import { Trainee, Trainer, PaymentTransaction, PTSubscription, PTSession, PTCommissionSettlement, RefundRecord, Enquiry } from '../types';
 
 const trainee = (overrides: Partial<Trainee> = {}): Trainee => ({
   id: 'tr1', fullName: 'Rahul Malhotra', phone: '9000000000', email: 'r@x.com', address: 'x',
@@ -78,8 +78,11 @@ describe('storageService pub/sub (subscribe/notify)', () => {
   it('invokes global ("*") listeners on every write, regardless of key', () => {
     let calls = 0;
     const unsub = storageService.subscribe('*', () => { calls++; });
-    storageService.saveTrainee(trainee());
-    storageService.saveTrainer(trainer());
+    // { silent: true } isolates this from the (separately tested) audit-log
+    // write each of these methods also makes, which would otherwise double
+    // the notification count and couple this test to that unrelated detail.
+    storageService.saveTrainee(trainee(), { silent: true });
+    storageService.saveTrainer(trainer(), { silent: true });
     unsub();
     expect(calls).toBe(2);
   });
@@ -388,5 +391,121 @@ describe('storageService biometric last-known status (regression: bridge looks d
       checkedAt: '2026-09-05T00:00:00.000Z',
     });
     expect(storageService.getBiometricLastStatus()).toMatchObject({ connected: true, firmware: '1.2', userCount: 5 });
+  });
+});
+
+describe('audit trail coverage (every meaningful activity must be logged)', () => {
+  const lastAction = () => storageService.getAuditLogs()[0];
+
+  it('logs Trainer Added / Trainer Updated on saveTrainer, distinguishing create from edit', () => {
+    storageService.saveTrainer(trainer());
+    expect(lastAction().action).toBe('Trainer Added');
+    storageService.saveTrainer(trainer({ fullName: 'Amit V.' }));
+    expect(lastAction().action).toBe('Trainer Updated');
+  });
+
+  it('suppresses the Trainer entry when saveTrainer is called with { silent: true } (cascading update)', () => {
+    const before = storageService.getAuditLogs().length;
+    storageService.saveTrainer(trainer(), { silent: true });
+    expect(storageService.getAuditLogs().length).toBe(before);
+  });
+
+  it('logs Trainee Added / Trainee Updated on saveTrainee', () => {
+    storageService.saveTrainee(trainee());
+    expect(lastAction().action).toBe('Trainee Added');
+    storageService.saveTrainee(trainee({ fullName: 'Rahul M.' }));
+    expect(lastAction().action).toBe('Trainee Updated');
+  });
+
+  it('does not double-log a trainee update that is only a cascading side-effect of recording a payment', () => {
+    storageService.saveTrainee(trainee());
+    const before = storageService.getAuditLogs().length;
+    storageService.recordPayment({
+      id: 'pay-x', receiptNumber: 'R1', traineeId: 'tr1', traineeName: 'x', branchId: 'branch-1',
+      paymentDate: '', paymentMethod: 'Cash', referenceNumber: '', totalAmount: 500,
+      allocation: { generalMembershipAmount: 500, ptAmount: 0 }, discount: 0, tax: 0, previousDue: 0,
+      remainingDue: 0, createdBy: '', createdAt: '',
+    });
+    const after = storageService.getAuditLogs();
+    // Exactly one new entry — "Payment Recorded" — not a second "Trainee Updated" for the cascading totals bump.
+    expect(after.length).toBe(before + 1);
+    expect(after[0].action).toBe('Payment Recorded');
+  });
+
+  it('logs PT Subscription Assigned on a genuine new subscription, but not for internal recalculation/commission cascades', () => {
+    const sub: PTSubscription = {
+      id: 'sub-x', traineeId: 'tr1', traineeName: 'x', trainerId: 'tn1', trainerName: 'x', packageId: 'p',
+      packageName: 'PT Basic', branchId: 'branch-1', startDate: '', expiryDate: '', totalSessions: 5,
+      completedSessions: 0, remainingSessions: 5, cancelledSessions: 0, noShowSessions: 0, packagePrice: 5000,
+      discount: 0, netPrice: 5000, paidAmount: 0, dueAmount: 5000,
+      revenueRule: { model: 'percentage', discountPolicy: 'net_price', refundPolicy: 'proportional' },
+      trainerCommissionTotal: 0, trainerCommissionEarned: 0, trainerCommissionPaid: 0, trainerCommissionOutstanding: 0,
+      branchShare: 0, status: 'active', history: [], createdAt: '', updatedAt: '',
+    };
+    storageService.savePTSubscription(sub);
+    expect(lastAction().action).toBe('PT Subscription Assigned');
+
+    const before = storageService.getAuditLogs().length;
+    storageService.recalculateSubscriptionSessions('sub-x');
+    expect(storageService.getAuditLogs().length).toBe(before); // silent cascade, no duplicate entry
+  });
+
+  it('logs a status-specific action for every PT session save', () => {
+    storageService.savePTSession({
+      id: 's1', subscriptionId: 'sub-x', traineeId: 'tr1', traineeName: 'x', trainerId: 'tn1', trainerName: 'x',
+      branchId: 'branch-1', scheduledDate: '2026-09-05', startTime: '', endTime: '', status: 'completed',
+      createdBy: '', createdAt: '',
+    });
+    expect(lastAction().action).toBe('PT Session completed');
+  });
+
+  it('logs Enquiry Logged for a new enquiry and a status-specific action for updates', () => {
+    const enquiry: Enquiry = {
+      id: 'enq-x', name: 'X', phone: '', email: '', age: 20, gender: 'Male', interestedPlan: '',
+      source: 'Walk-in', assignedStaff: '', branchId: 'branch-1', enquiryDate: '', followUpDate: '',
+      status: 'new', notes: '', createdAt: '',
+    };
+    storageService.saveEnquiry(enquiry);
+    expect(lastAction().action).toBe('Enquiry Logged');
+    storageService.saveEnquiry({ ...enquiry, status: 'converted' });
+    expect(lastAction().action).toBe('Enquiry converted');
+  });
+
+  it('logs a biometric enrollment add/disable, resolving the branch from the linked trainee', () => {
+    storageService.saveTrainee(trainee({ branchId: 'branch-2' }), { silent: true });
+    storageService.saveBiometricEnrollment({
+      personId: 'tr1', personName: 'Rahul Malhotra', personType: 'trainee', templateId: 't1',
+      confidenceScore: 99, enrolledAt: '2026-09-01', status: 'active',
+    });
+    expect(lastAction().action).toBe('Biometric Enrollment Added');
+    expect(lastAction().branchId).toBe('branch-2');
+
+    storageService.saveBiometricEnrollment({
+      personId: 'tr1', personName: 'Rahul Malhotra', personType: 'trainee', templateId: 't1',
+      confidenceScore: 99, enrolledAt: '2026-09-01', status: 'disabled',
+    });
+    expect(lastAction().action).toBe('Biometric Access Disabled');
+  });
+
+  it('logs biometric enrollment removal, and does nothing if the person was never enrolled', () => {
+    storageService.saveBiometricEnrollment({
+      personId: 'tr1', personName: 'X', personType: 'trainee', templateId: 't1', confidenceScore: 99,
+      enrolledAt: '', status: 'active',
+    });
+    storageService.deleteBiometricEnrollment('tr1');
+    expect(lastAction().action).toBe('Biometric Enrollment Removed');
+
+    const before = storageService.getAuditLogs().length;
+    storageService.deleteBiometricEnrollment('never-enrolled');
+    expect(storageService.getAuditLogs().length).toBe(before);
+  });
+
+  it('logs a biometric bridge config change only when the address/model actually changes, not on repeat saves of the same value', () => {
+    storageService.saveBiometricConfig({ bridgeUrl: 'https://10.0.0.5:8090', deviceModel: 'ESSL', autoTurnstile: true });
+    expect(lastAction().action).toBe('Biometric Bridge Configured');
+
+    const before = storageService.getAuditLogs().length;
+    storageService.saveBiometricConfig({ bridgeUrl: 'https://10.0.0.5:8090', deviceModel: 'ESSL', autoTurnstile: false });
+    expect(storageService.getAuditLogs().length).toBe(before); // only autoTurnstile changed, not address/model
   });
 });

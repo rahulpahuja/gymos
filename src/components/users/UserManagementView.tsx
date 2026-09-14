@@ -140,7 +140,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         : undefined;
 
     try {
-      await firebaseAuthService.approveUser(user.id, finalRole, finalBranch, currentUser.name, links);
+      await firebaseAuthService.approveUser(user.id, finalRole, finalBranch, currentUser.name, links, user.displayName || user.email);
       showToast(`User ${user.displayName || user.email} approved as ${finalRole.toUpperCase()}`);
     } catch (err) {
       console.error('Approval failed:', err);
@@ -151,7 +151,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handleConfirmReject = async () => {
     if (!rejectingUser) return;
     try {
-      await firebaseAuthService.rejectUser(rejectingUser.id, rejectionReason, currentUser.name);
+      await firebaseAuthService.rejectUser(rejectingUser.id, rejectionReason, currentUser.name, rejectingUser.displayName || rejectingUser.email);
       showToast(`Access rejected for ${rejectingUser.email}`);
       setRejectingUser(null);
     } catch (err) {
@@ -169,7 +169,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
         ? { linkedTraineeId: editLinkId }
         : undefined;
     try {
-      await firebaseAuthService.updateUserAccess(editingUser.id, editRole, editBranchId, links);
+      await firebaseAuthService.updateUserAccess(editingUser.id, editRole, editBranchId, links, editingUser.displayName || editingUser.email);
       showToast(`Updated access for ${editingUser.displayName || editingUser.email}`);
       setEditingUser(null);
     } catch (err) {
@@ -181,7 +181,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handleRevoke = async (userId: string, email: string) => {
     if (window.confirm(`Revoke access for ${email}? They will be locked out immediately, even if they sign in again.`)) {
       try {
-        await firebaseAuthService.revokeUser(userId, currentUser.name);
+        await firebaseAuthService.revokeUser(userId, currentUser.name, email);
         showToast(`Access revoked for ${email}`);
       } catch (err) {
         console.error('Revoke failed:', err);
@@ -193,7 +193,7 @@ export const UserManagementView: React.FC<UserManagementViewProps> = ({
   const handlePurge = async (userId: string, email: string) => {
     if (window.confirm(`Permanently delete the profile for ${email}? If they sign in again they will re-enter the approval queue as a new request.`)) {
       try {
-        await firebaseAuthService.deleteUser(userId);
+        await firebaseAuthService.deleteUser(userId, email);
         showToast(`Profile permanently deleted for ${email}`);
       } catch (err) {
         console.error('Delete failed:', err);

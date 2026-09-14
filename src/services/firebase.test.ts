@@ -42,6 +42,7 @@ vi.mock('firebase/firestore', () => ({
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firebaseAuthService } from './firebase';
+import { storageService } from './storageService';
 
 const notExists = { exists: () => false } as any;
 const existsWith = (data: unknown) => ({ exists: () => true, data: () => data }) as any;
@@ -226,5 +227,47 @@ describe('firebaseAuthService.onAuthState (regression: consume pre-auth on recon
 
     expect(received[0].status).toBe('rejected');
     expect(received[0].rejectionReason).toContain('removed by an administrator');
+  });
+});
+
+describe('firebaseAuthService user-management actions are all audited (regression: admin had zero visibility into these)', () => {
+  const lastAction = () => storageService.getAuditLogs()[0];
+
+  it('logs approveUser with the target person and their new role', async () => {
+    await firebaseAuthService.approveUser('u1', 'manager', 'branch-2', 'Admin', undefined, 'manager@gymos.in');
+    expect(lastAction().action).toBe('User Approved');
+    expect(lastAction().details).toContain('manager@gymos.in');
+    expect(lastAction().details).toContain('manager');
+    expect(lastAction().branchId).toBe('branch-2');
+  });
+
+  it('logs rejectUser with the reason', async () => {
+    await firebaseAuthService.rejectUser('u2', 'Not a real staff member', 'Admin', 'spam@gymos.in');
+    expect(lastAction().action).toBe('User Rejected');
+    expect(lastAction().details).toContain('Not a real staff member');
+  });
+
+  it('logs updateUserAccess with the new role/branch', async () => {
+    await firebaseAuthService.updateUserAccess('u3', 'trainer', 'branch-1', undefined, 'coach@gymos.in');
+    expect(lastAction().action).toBe('User Access Updated');
+    expect(lastAction().branchId).toBe('branch-1');
+  });
+
+  it('logs revokeUser', async () => {
+    await firebaseAuthService.revokeUser('u4', 'Admin', 'exstaff@gymos.in');
+    expect(lastAction().action).toBe('User Access Revoked');
+    expect(lastAction().details).toContain('exstaff@gymos.in');
+  });
+
+  it('logs deleteUser', async () => {
+    await firebaseAuthService.deleteUser('u5', 'purged@gymos.in');
+    expect(lastAction().action).toBe('User Deleted');
+  });
+
+  it('logs preAuthorizeStaff with the normalized email and assigned branch', async () => {
+    await firebaseAuthService.preAuthorizeStaff('  Manager2@GymOS.in ', 'manager', 'branch-3', 'Admin');
+    expect(lastAction().action).toBe('Staff Pre-Authorized');
+    expect(lastAction().entityId).toBe('manager2@gymos.in');
+    expect(lastAction().branchId).toBe('branch-3');
   });
 });
