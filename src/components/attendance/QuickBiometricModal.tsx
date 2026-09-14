@@ -93,15 +93,15 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
 
       // If PT session attendance, consume session
       if (isPT && activeSub) {
-        const completed = activeSub.completedSessions + 1;
         const remaining = Math.max(0, activeSub.remainingSessions - 1);
+        // Only the commission bump needs setting here — completedSessions,
+        // remainingSessions, and status are derived from actual PTSession
+        // records by savePTSession()'s own recalculation below, so setting
+        // them here would just be immediately overwritten.
         const updatedSub: PTSubscription = {
           ...activeSub,
-          completedSessions: completed,
-          remainingSessions: remaining,
           trainerCommissionEarned: activeSub.trainerCommissionEarned + 600,
           trainerCommissionOutstanding: activeSub.trainerCommissionOutstanding + 600,
-          status: remaining === 0 ? 'completed' : 'active',
         };
         // silent: this balance bump is a cascading side-effect of the single
         // "completed PT session" action logged by savePTSession() below, not
