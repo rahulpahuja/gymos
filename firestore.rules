@@ -1,12 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isSelf(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -19,7 +19,7 @@ service cloud.firestore {
 
     // Check if user is approved admin
     function isAdmin() {
-      return isAuthenticated() && 
+      return isAuthenticated() &&
         (isOwnerEmail() ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
@@ -42,11 +42,37 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved';
     }
 
+    function myBranchId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.branchId;
+    }
+
+    // A manager may only touch records belonging to their own assigned branch
+    // ('all' never matches a manager's own branchId, so branch-wide/global
+    // records — e.g. an 'all'-scoped PT package — stay admin-only).
+    function isManagerForBranch(branchId) {
+      return isApprovedManager() && myBranchId() == branchId;
+    }
+
+    function canWriteBranchScoped(branchId) {
+      return isAdmin() || isManagerForBranch(branchId);
+    }
+
+    // The gymos client re-syncs an ENTIRE local collection (every branch's
+    // records) in one atomic batch on every local change — see
+    // firestoreSync.ts pushCollection(). A per-document branch check alone
+    // would reject that whole batch the instant it contains any other
+    // branch's untouched record, breaking sync for every manager. Treating a
+    // byte-for-byte-unchanged re-set as always allowed keeps that harmless
+    // resync working while still blocking any *actual* cross-branch edit.
+    function isNoOpWrite() {
+      return request.resource.data == resource.data;
+    }
+
     // Users Collection
     match /users/{userId} {
       // Authenticated users can read user records (required for staff directory & approval checks)
       allow read: if isAuthenticated();
-      
+
       // User can create their own profile on sign-up; admins & managers can pre-authorize profiles
       allow create: if isAuthenticated() && (isSelf(userId) || isAdmin() || isApprovedManager());
 
@@ -71,48 +97,102 @@ service cloud.firestore {
       allow list: if isAdmin() || isApprovedManager();
     }
 
-    // Branches Collection: readable by all authenticated users (required for target branch dropdowns)
+    // Branches Collection: readable by all authenticated users (required for
+    // target branch dropdowns). Branch entities themselves are admin-only to
+    // manage — the client's own branch-management UI is already admin-gated.
     match /branches/{document=**} {
       allow read: if isAuthenticated();
-      allow write: if isApprovedUser();
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isNoOpWrite();
+      allow delete: if isAdmin();
     }
 
-    // Operational Collections: allow access for authenticated, approved users
+    // Operational collections: read stays open to any approved user (trainer/
+    // trainee self-service portals are read-only and need this); writes are
+    // admin-unrestricted, manager-restricted to their own branch's records.
     match /trainees/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /trainers/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /pt_packages/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.assignedBranchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.assignedBranchId) && canWriteBranchScoped(request.resource.data.assignedBranchId));
+      allow delete: if canWriteBranchScoped(resource.data.assignedBranchId);
     }
     match /pt_subscriptions/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /pt_sessions/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /payments/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /pt_settlements/{document=**} {
-      allow read, write: if isApprovedUser();
-    }
-    match /attendance/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /enquiries/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /expenses/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
     match /equipment/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if canWriteBranchScoped(request.resource.data.branchId);
+      allow update: if isNoOpWrite() || (canWriteBranchScoped(resource.data.branchId) && canWriteBranchScoped(request.resource.data.branchId));
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
     }
+
+    // Attendance: create/update MUST stay open to every approved user (not
+    // just admin/manager) — a live biometric punch is relayed to Firestore
+    // from whichever session happens to have gymos open, including a
+    // trainer/trainee self-service portal (see BiometricPunchToast.tsx).
+    // There is no delete UI for attendance, so that alone is branch-scoped.
+    match /attendance/{document=**} {
+      allow read: if isApprovedUser();
+      allow create, update: if isApprovedUser();
+      allow delete: if canWriteBranchScoped(resource.data.branchId);
+    }
+
+    // Audit logs: a genuine append-only compliance ledger. Any approved
+    // user's session can append an entry (their own actions, including the
+    // attendance relay above), but once written an entry's content can never
+    // be changed or removed by anyone — including admins. A byte-for-byte
+    // no-op re-set is still allowed since the client resyncs the whole
+    // collection on every change (see isNoOpWrite()).
     match /audit_logs/{document=**} {
-      allow read, write: if isApprovedUser();
+      allow read: if isApprovedUser();
+      allow create: if isApprovedUser();
+      allow update: if isNoOpWrite();
+      allow delete: if false;
     }
   }
 }

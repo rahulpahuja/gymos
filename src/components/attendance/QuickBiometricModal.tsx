@@ -103,7 +103,10 @@ export const QuickBiometricModal: React.FC<QuickBiometricModalProps> = ({
           trainerCommissionOutstanding: activeSub.trainerCommissionOutstanding + 600,
           status: remaining === 0 ? 'completed' : 'active',
         };
-        storageService.savePTSubscription(updatedSub);
+        // silent: this balance bump is a cascading side-effect of the single
+        // "completed PT session" action logged by savePTSession() below, not
+        // separate activity in its own right.
+        storageService.savePTSubscription(updatedSub, { silent: true });
 
         // Also add completed PTSession
         storageService.savePTSession({

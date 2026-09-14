@@ -156,7 +156,9 @@ export const RefundModal: React.FC<RefundModalProps> = ({
         branchShare: calculation.newBranchShare,
         status: linkedSub.remainingSessions <= 0 ? 'cancelled' : linkedSub.status,
       };
-      storageService.savePTSubscription(updatedSub);
+      // silent: these are cascading balance adjustments of the single refund
+      // action already logged by recordRefund() above, not separate activity.
+      storageService.savePTSubscription(updatedSub, { silent: true });
 
       // Adjust trainer commission
       const updatedTrainer: Trainer = {
@@ -170,7 +172,7 @@ export const RefundModal: React.FC<RefundModalProps> = ({
           linkedTrainer.ptCommissionOutstanding - calculation.trainerReduction
         ),
       };
-      storageService.saveTrainer(updatedTrainer);
+      storageService.saveTrainer(updatedTrainer, { silent: true });
     }
 
     setIsSuccess(true);
