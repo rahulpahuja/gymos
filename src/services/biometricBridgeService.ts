@@ -87,6 +87,40 @@ export class FingerprintDeviceAdapter {
     } catch {
       this.config = DEFAULT_BIOMETRIC_CONFIG;
     }
+    this.hydrateFromLastKnownStatus();
+  }
+
+  /**
+   * Every page load creates a brand-new adapter instance with no memory of
+   * the last connection, so the UI always started at "disconnected" until
+   * someone re-verified manually — looking exactly like the bridge itself
+   * had dropped on refresh. Warm-start from the last observed status (for
+   * the currently configured bridge URL only) so the UI can show "connected"
+   * immediately while a real background check confirms or corrects it.
+   */
+  private hydrateFromLastKnownStatus() {
+    try {
+      const last = storageService.getBiometricLastStatus();
+      if (!last || last.bridgeUrl !== this.config.bridgeUrl) return;
+      this.connected = last.connected;
+      this.currentStatus = last.connected ? 'connected' : 'disconnected';
+      this.firmware = last.firmware || '';
+      this.serialNumber = last.serialNumber || '';
+      this.userCount = last.userCount;
+    } catch {
+      // Corrupted/unavailable cache — fall back to the normal cold-start state.
+    }
+  }
+
+  private persistLastKnownStatus() {
+    storageService.saveBiometricLastStatus({
+      bridgeUrl: this.config.bridgeUrl,
+      connected: this.connected,
+      firmware: this.firmware || undefined,
+      serialNumber: this.serialNumber || undefined,
+      userCount: this.userCount,
+      checkedAt: new Date().toISOString(),
+    });
   }
 
   getConfig(): BiometricBridgeConfig {
@@ -216,6 +250,7 @@ export class FingerprintDeviceAdapter {
         this.connected = false;
         this.currentStatus = 'error';
         this.lastError = data.error || 'Bridge reported it could not reach the device.';
+        this.persistLastKnownStatus();
         return false;
       }
       this.connected = true;
@@ -223,11 +258,13 @@ export class FingerprintDeviceAdapter {
       this.firmware = data.firmware || '';
       this.serialNumber = data.serialNumber || '';
       this.userCount = data.userCount;
+      this.persistLastKnownStatus();
       return true;
     } catch (e) {
       this.connected = false;
       this.currentStatus = 'error';
       this.lastError = e instanceof Error ? e.message : 'Could not reach the bridge.';
+      this.persistLastKnownStatus();
       return false;
     }
   }
@@ -236,6 +273,7 @@ export class FingerprintDeviceAdapter {
     this.connected = false;
     this.currentStatus = 'disconnected';
     this.stopLiveFeed();
+    this.persistLastKnownStatus();
     return true;
   }
 
@@ -252,6 +290,7 @@ export class FingerprintDeviceAdapter {
         this.firmware = data.firmware || this.firmware;
         this.serialNumber = data.serialNumber || this.serialNumber;
         this.userCount = data.userCount;
+        this.persistLastKnownStatus();
       }
       return { success: data.success, error: data.error };
     } catch (e) {
@@ -270,6 +309,22 @@ export class FingerprintDeviceAdapter {
       return { success: data.success, records: data.records || [], count: data.count || 0, error: data.error };
     } catch (e) {
       return { success: false, records: [], count: 0, error: e instanceof Error ? e.message : 'Synchronize failed.' };
+    }
+  }
+
+  /** Read-only dump of every punch the device is holding — unlike synchronize(),
+   * this never advances the bridge's "last seen" cursor, so it's safe to call
+   * anytime just to inspect/audit the device's full history. */
+  async getDeviceAttendanceLog(): Promise<BiometricSyncResult> {
+    try {
+      const data = await this.request<{ success: boolean; records?: BiometricPunchEvent[]; count?: number; error?: string }>(
+        '/api/attendance-log',
+        undefined,
+        30000
+      );
+      return { success: data.success, records: data.records || [], count: data.count || 0, error: data.error };
+    } catch (e) {
+      return { success: false, records: [], count: 0, error: e instanceof Error ? e.message : 'Could not read the device attendance log.' };
     }
   }
 

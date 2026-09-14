@@ -28,6 +28,18 @@ export interface PrintableReportConfig {
   tables: ReportTable[];
 }
 
+/**
+ * Escapes HTML metacharacters. Every report field ultimately comes from
+ * user-editable data (trainee names, notes, references, branch names) and is
+ * interpolated straight into a document.write()'d page, so anything that
+ * isn't escaped here is a stored-XSS vector.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+  ));
+}
+
 export class PrintService {
   /**
    * Triggers system print for the currently opened receipt modal or report view
@@ -65,9 +77,9 @@ export class PrintService {
             .map(
               (k) => `
             <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
-              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${k.label}</div>
-              <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">${k.value}</div>
-              ${k.subtext ? `<div style="font-size: 10px; color: #475569; margin-top: 2px;">${k.subtext}</div>` : ''}
+              <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">${escapeHtml(k.label)}</div>
+              <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">${escapeHtml(k.value)}</div>
+              ${k.subtext ? `<div style="font-size: 10px; color: #475569; margin-top: 2px;">${escapeHtml(k.subtext)}</div>` : ''}
             </div>
           `
             )
@@ -80,14 +92,14 @@ export class PrintService {
     config.tables.forEach((t) => {
       tablesHtml += `
         <div style="margin-top: 24px;">
-          <h3 style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">${t.title}</h3>
+          <h3 style="font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">${escapeHtml(t.title)}</h3>
           <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 6px;">
             <thead>
               <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
                 ${t.headers
                   .map(
                     (h, idx) => `
-                  <th style="padding: 8px 10px; text-align: ${idx > 1 ? 'right' : 'left'}; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 10px;">${h}</th>
+                  <th style="padding: 8px 10px; text-align: ${idx > 1 ? 'right' : 'left'}; font-weight: 700; color: #334155; text-transform: uppercase; font-size: 10px;">${escapeHtml(h)}</th>
                 `
                   )
                   .join('')}
@@ -101,7 +113,7 @@ export class PrintService {
                   ${row
                     .map(
                       (cell, cIdx) => `
-                    <td style="padding: 7px 10px; text-align: ${cIdx > 1 ? 'right' : 'left'}; color: #1e293b;">${cell}</td>
+                    <td style="padding: 7px 10px; text-align: ${cIdx > 1 ? 'right' : 'left'}; color: #1e293b;">${escapeHtml(cell)}</td>
                   `
                     )
                     .join('')}
@@ -116,7 +128,7 @@ export class PrintService {
                   ${t.summaryRow
                     .map(
                       (cell, cIdx) => `
-                    <td style="padding: 8px 10px; text-align: ${cIdx > 1 ? 'right' : 'left'}; color: #0f172a;">${cell}</td>
+                    <td style="padding: 8px 10px; text-align: ${cIdx > 1 ? 'right' : 'left'}; color: #0f172a;">${escapeHtml(cell)}</td>
                   `
                     )
                     .join('')}
@@ -134,7 +146,7 @@ export class PrintService {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>${config.title} - FitOS Commercial Audit</title>
+          <title>${escapeHtml(config.title)} - FitOS Commercial Audit</title>
           <style>
             @page {
               size: A4 portrait;
@@ -204,13 +216,14 @@ export class PrintService {
             <div class="brand">
               <span class="badge">FitOS</span>
               <div>
-                <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #0f172a;">${config.title}</h1>
-                <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">${config.subtitle}</p>
+                <h1 style="margin: 0; font-size: 18px; font-weight: 800; color: #0f172a;">${escapeHtml(config.title)}</h1>
+                <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">${escapeHtml(config.subtitle)}</p>
               </div>
             </div>
             <div class="meta">
-              <div><strong>Branch:</strong> ${config.branchName || 'All Branches (Consolidated)'}</div>
-              <div><strong>Generated:</strong> ${currentDate}</div>
+              <div><strong>Branch:</strong> ${escapeHtml(config.branchName || 'All Branches (Consolidated)')}</div>
+              ${config.dateRange ? `<div>${escapeHtml(config.dateRange)}</div>` : ''}
+              <div><strong>Generated:</strong> ${escapeHtml(currentDate)}</div>
               <div><strong>Audit Code:</strong> SEC-60-73-AUDIT</div>
             </div>
           </div>

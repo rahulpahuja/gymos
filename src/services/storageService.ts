@@ -25,6 +25,7 @@ import {
   MembershipPlan,
   RefundRecord,
   BiometricBridgeConfig,
+  BiometricLastStatus,
   BiometricEnrollment,
 } from '../types';
 
@@ -49,6 +50,7 @@ const STORAGE_KEYS = {
   AUDIT_LOGS: 'gymos_audit_logs_v1',
   BIOMETRIC_CONFIG: 'gymos_biometric_config_v1',
   BIOMETRIC_ENROLLMENTS: 'gymos_biometric_enrollments_v1',
+  BIOMETRIC_LAST_STATUS: 'gymos_biometric_last_status_v1',
 };
 
 export const DEFAULT_BIOMETRIC_CONFIG: BiometricBridgeConfig = {
@@ -1386,6 +1388,17 @@ class StorageService {
     this.setItem(STORAGE_KEYS.BIOMETRIC_CONFIG, config);
   }
 
+  /** Last-observed bridge connection snapshot — lets the UI warm-start as
+   * "was connected" across a page refresh instead of showing disconnected
+   * until a fresh handshake completes. */
+  public getBiometricLastStatus(): BiometricLastStatus | null {
+    return this.getItem<BiometricLastStatus | null>(STORAGE_KEYS.BIOMETRIC_LAST_STATUS, null);
+  }
+
+  public saveBiometricLastStatus(status: BiometricLastStatus) {
+    this.setItem(STORAGE_KEYS.BIOMETRIC_LAST_STATUS, status);
+  }
+
   // --- Biometric Fingerprint Enrollments ---
   public getBiometricEnrollments(): BiometricEnrollment[] {
     return this.getItem<BiometricEnrollment[]>(STORAGE_KEYS.BIOMETRIC_ENROLLMENTS, []);
@@ -1717,6 +1730,68 @@ class StorageService {
     list.unshift(record);
     this.setItem(STORAGE_KEYS.ATTENDANCE, list);
     this.logAudit('Attendance Marked', 'AttendanceRecord', record.id, record.branchId, `${record.personType} ${record.personName} check-in via ${record.verificationMethod}`);
+  }
+
+  /**
+   * Upserts one visit's attendance from a real biometric device punch
+   * (live SSE or Synchronize backlog). A device punch is 0 = check-in or
+   * 1 = check-out (ZK protocol) — the caller-built AttendanceRecord objects
+   * used to ignore that entirely and always append a fresh "checked in" row,
+   * so every checkout became a duplicate visit with its exit time
+   * mislabeled as a second check-in, and checkOutTime was never populated.
+   */
+  public recordBiometricPunch(punch: {
+    personId: string;
+    personName: string;
+    personType: 'trainee' | 'trainer';
+    timestamp: string;
+    punchType: number; // 0 = check-in, 1 = check-out
+    branchId?: string;
+    deviceId?: string;
+  }): AttendanceRecord {
+    const date = new Date(punch.timestamp).toISOString().substring(0, 10);
+    const time = new Date(punch.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const list = this.getAttendance();
+    const existing = list.find(
+      (r) => r.personId === punch.personId && r.date === date && r.verificationMethod === 'fingerprint'
+    );
+
+    if (existing) {
+      // Check-out closes the day's open visit; a repeat check-in on an
+      // already-open visit is a no-op (keep the original entry time).
+      if (punch.punchType === 1 && !existing.checkOutTime) {
+        existing.checkOutTime = time;
+        this.setItem(STORAGE_KEYS.ATTENDANCE, list);
+      }
+      return existing;
+    }
+
+    const record: AttendanceRecord = {
+      id: `att-${punch.personId}-${date}`,
+      personId: punch.personId,
+      personName: punch.personName,
+      personType: punch.personType,
+      branchId: punch.branchId || 'branch-1',
+      date,
+      // A check-out with no prior check-in on record (e.g. a missed punch)
+      // still gets captured rather than silently dropped.
+      checkInTime: punch.punchType === 1 ? '' : time,
+      checkOutTime: punch.punchType === 1 ? time : undefined,
+      status: 'present',
+      verificationMethod: 'fingerprint',
+      isPTSessionAttendance: false,
+      deviceId: punch.deviceId,
+    };
+    list.unshift(record);
+    this.setItem(STORAGE_KEYS.ATTENDANCE, list);
+    this.logAudit(
+      'Attendance Marked',
+      'AttendanceRecord',
+      record.id,
+      record.branchId,
+      `${record.personType} ${record.personName} ${punch.punchType === 1 ? 'checked out' : 'checked in'} via fingerprint`
+    );
+    return record;
   }
 
   // --- Enquiries ---

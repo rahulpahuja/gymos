@@ -4,9 +4,19 @@
 
 type Cell = string | number | null | undefined;
 
+/**
+ * Neutralizes CSV formula injection (OWASP CSV Injection): a cell opening
+ * with = + - @ or a tab is interpreted as a formula by Excel/Sheets on open.
+ * Prefixing with a single quote forces text interpretation, matching how
+ * Sheets/Excel themselves defuse pasted formulas.
+ */
+function neutralizeFormula(s: string): string {
+  return /^[=+\-@\t]/.test(s) ? `'${s}` : s;
+}
+
 export function toCSV(headers: string[], rows: Cell[][]): string {
   const escape = (value: Cell): string => {
-    const s = value === null || value === undefined ? '' : String(value);
+    const s = neutralizeFormula(value === null || value === undefined ? '' : String(value));
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [headers.map(escape).join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n');

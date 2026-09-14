@@ -502,6 +502,19 @@ export interface BiometricBridgeConfig {
   autoTurnstile: boolean;
 }
 
+/** Last-observed bridge connection snapshot, persisted so the UI can warm-start
+ * as "was connected" across a browser refresh instead of flashing disconnected
+ * until a fresh handshake completes. Scoped to `bridgeUrl` so a stale snapshot
+ * from a previously configured address is never shown as current. */
+export interface BiometricLastStatus {
+  bridgeUrl: string;
+  connected: boolean;
+  firmware?: string;
+  serialNumber?: string;
+  userCount?: number;
+  checkedAt: string;
+}
+
 export type BiometricPersonType = 'trainee' | 'trainer' | 'staff';
 
 export interface BiometricEnrollment {
@@ -523,6 +536,7 @@ export interface BiometricDeviceUser {
   personId: string | null;
   personName: string | null;
   personType: BiometricPersonType | null;
+  enrolledAt: string | null;
 }
 
 export interface BiometricValidity {

@@ -351,6 +351,7 @@ def list_users():
             "personId": linked.get("personId") if linked else None,
             "personName": linked.get("personName") if linked else None,
             "personType": linked.get("personType") if linked else None,
+            "enrolledAt": linked.get("enrolledAt") if linked else None,
         })
     return jsonify({"success": True, "users": result, "count": len(result)})
 
@@ -406,38 +407,60 @@ def set_validity():
     return jsonify({"success": True})
 
 
+def _read_device_attendance(conn):
+    records = conn.get_attendance() or []
+    return [
+        {"deviceUserId": str(r.user_id), "timestamp": r.timestamp.isoformat(), "punch": r.punch, "status": r.status}
+        for r in records
+    ]
+
+
+def _enrich_with_mapping(records):
+    mapping = load_mapping()
+    by_device_id = {v.get("deviceUserId"): v for v in mapping.values()}
+    return [
+        {
+            **r,
+            "personId": by_device_id.get(r["deviceUserId"], {}).get("personId"),
+            "personName": by_device_id.get(r["deviceUserId"], {}).get("personName"),
+            "personType": by_device_id.get(r["deviceUserId"], {}).get("personType"),
+        }
+        for r in records
+    ]
+
+
 @app.route("/api/sync", methods=["POST"])
 def sync():
-    def fn(conn):
-        records = conn.get_attendance() or []
-        return [
-            {"deviceUserId": str(r.user_id), "timestamp": r.timestamp.isoformat(), "punch": r.punch, "status": r.status}
-            for r in records
-        ]
-
     try:
-        records = with_device(fn, timeout=20)
+        records = with_device(_read_device_attendance, timeout=20)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 502
 
     state = load_state()
     cursor = state.get("lastTimestamp")
     new_records = [r for r in records if not cursor or r["timestamp"] > cursor]
-
-    mapping = load_mapping()
-    by_device_id = {v.get("deviceUserId"): v for v in mapping.values()}
-    enriched = []
     for r in new_records:
-        person = by_device_id.get(r["deviceUserId"], {})
-        enriched.append({
-            **r,
-            "personId": person.get("personId"),
-            "personName": person.get("personName"),
-            "personType": person.get("personType"),
-        })
         _mark_seen(r["timestamp"])
 
+    enriched = _enrich_with_mapping(new_records)
     return jsonify({"success": True, "records": enriched, "count": len(enriched), "totalOnDevice": len(records)})
+
+
+@app.route("/api/attendance-log")
+def attendance_log():
+    """Read-only dump of every punch record the device is holding, enriched
+    with whatever personId/personName mapping we have — unlike /api/sync,
+    this never advances the "last seen" cursor, so it's safe to call anytime
+    just to look at (or audit) the device's full history without affecting
+    what the next Synchronize considers new."""
+    try:
+        records = with_device(_read_device_attendance, timeout=20)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 502
+
+    records.sort(key=lambda r: r["timestamp"], reverse=True)
+    enriched = _enrich_with_mapping(records)
+    return jsonify({"success": True, "records": enriched, "count": len(enriched)})
 
 
 @app.route("/api/force-open", methods=["POST"])

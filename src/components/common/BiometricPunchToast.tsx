@@ -29,17 +29,12 @@ export const BiometricPunchToast: React.FC = () => {
         const denied = enrollment?.status === 'disabled';
 
         if (event.personId && event.personName && !denied) {
-          storageService.recordAttendance({
-            id: `att-live-${event.deviceUserId}-${event.timestamp}`,
+          storageService.recordBiometricPunch({
             personId: event.personId,
             personName: event.personName,
             personType: event.personType === 'staff' ? 'trainer' : event.personType || 'trainee',
-            branchId: 'branch-1',
-            date: new Date(event.timestamp).toISOString().substring(0, 10),
-            checkInTime: new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            status: 'present',
-            verificationMethod: 'fingerprint',
-            isPTSessionAttendance: false,
+            timestamp: event.timestamp,
+            punchType: event.punch,
             deviceId: event.deviceUserId,
           });
         }

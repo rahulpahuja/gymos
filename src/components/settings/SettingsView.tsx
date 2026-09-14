@@ -28,8 +28,11 @@ import {
   Users,
   Search,
   Link2,
+  History,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
-import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, BiometricDeviceUser, Trainee, Trainer } from '../../types';
+import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, BiometricDeviceUser, BiometricPunchEvent, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
 import { biometricBridge, buildEnrollment, computeTraineeValidity } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
@@ -173,6 +176,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [connStatus, setConnStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
   const [connMsg, setConnMsg] = useState<string>('');
 
+  // Auto-reconnect on mount: a browser refresh always tears down the old
+  // connection state (a fresh page load means a brand-new adapter instance),
+  // which used to leave this page stuck showing "idle" until someone
+  // manually clicked "Test Connection" — looking exactly like the bridge had
+  // dropped. Warm-start the badge from the adapter's persisted last-known
+  // status, then silently re-verify in the background.
+  useEffect(() => {
+    if (biometricBridge.isConnected()) {
+      setConnStatus('connected');
+      setConnMsg('Reconnecting to confirm the bridge is still reachable…');
+    }
+    let cancelled = false;
+    (async () => {
+      const ok = await biometricBridge.connect();
+      if (cancelled) return;
+      const status = biometricBridge.getDeviceStatus();
+      if (ok) {
+        setConnStatus('connected');
+        setConnMsg(
+          `Connected to ${status.model} — firmware ${status.firmware}, serial ${status.serialNumber}${
+            status.userCount !== undefined ? `, ${status.userCount} users on device` : ''
+          }.`
+        );
+      } else {
+        setConnStatus('error');
+        setConnMsg(biometricBridge.getLastError() || `Could not reach the bridge at ${status.port}.`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Device actions — force-open, synchronize, refresh (Settings & Configuration)
   const [actionBusy, setActionBusy] = useState<'test-open' | 'force-open' | 'sync' | 'refresh' | null>(null);
   const [actionMsg, setActionMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -220,6 +256,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setDeviceUsers(result.users);
     } else {
       setDeviceUsersMsg(result.error || 'Could not load device users.');
+    }
+  };
+
+  // Read-only view of every punch the device is holding — for auditing what
+  // the device has actually logged, independent of what Synchronize has (or
+  // hasn't) already pulled into gymos.
+  const [deviceLog, setDeviceLog] = useState<BiometricPunchEvent[]>([]);
+  const [deviceLogLoading, setDeviceLogLoading] = useState(false);
+  const [deviceLogMsg, setDeviceLogMsg] = useState('');
+
+  const handleLoadDeviceLog = async () => {
+    setDeviceLogLoading(true);
+    setDeviceLogMsg('');
+    const result = await biometricBridge.getDeviceAttendanceLog();
+    setDeviceLogLoading(false);
+    if (result.success) {
+      setDeviceLog(result.records);
+    } else {
+      setDeviceLogMsg(result.error || 'Could not read the device attendance log.');
     }
   };
 
@@ -339,7 +394,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
     const result = await biometricBridge.synchronize();
     if (result.success) {
-      const today = new Date().toISOString().substring(0, 10);
       const currentEnrollments = storageService.getBiometricEnrollments();
       let recorded = 0;
       let denied = 0;
@@ -350,17 +404,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           denied++;
           continue;
         }
-        storageService.recordAttendance({
-          id: `att-sync-${rec.deviceUserId}-${rec.timestamp}`,
+        storageService.recordBiometricPunch({
           personId: rec.personId,
           personName: rec.personName,
           personType: rec.personType === 'staff' ? 'trainer' : rec.personType || 'trainee',
-          branchId: 'branch-1',
-          date: new Date(rec.timestamp).toISOString().substring(0, 10) || today,
-          checkInTime: new Date(rec.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          status: 'present',
-          verificationMethod: 'fingerprint',
-          isPTSessionAttendance: false,
+          timestamp: rec.timestamp,
+          punchType: rec.punch,
           deviceId: biometricBridge.getDeviceStatus().serialNumber,
         });
         recorded++;
@@ -1114,10 +1163,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         </div>
 
                         {du.linked ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
-                            <CheckCircle2 className="w-3 h-3" />
-                            Linked to {du.personName} ({du.personType})
-                          </span>
+                          <div className="flex flex-col gap-0.5 w-fit">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                              <CheckCircle2 className="w-3 h-3" />
+                              Linked to {du.personName} ({du.personType})
+                            </span>
+                            {du.enrolledAt && (
+                              <span className="text-[10px] text-gray-400 font-mono pl-1">
+                                Enrolled {new Date(du.enrolledAt).toLocaleString()}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-1 flex-wrap items-center gap-1.5">
                             <select
@@ -1164,6 +1220,67 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   })}
                 </div>
               </>
+            )}
+          </div>
+
+          {/* Full device attendance log — read-only, does not touch the Synchronize cursor */}
+          <div className="pt-4 border-t border-gray-100 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
+                <History className="w-3.5 h-3.5 text-indigo-600" />
+                Device Attendance Log {deviceLog.length > 0 ? `(${deviceLog.length})` : ''}
+              </h4>
+              <button
+                type="button"
+                onClick={handleLoadDeviceLog}
+                disabled={deviceLogLoading}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-800 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition-colors shadow-xs flex items-center gap-1.5"
+              >
+                {deviceLogLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <History className="w-3.5 h-3.5" />}
+                {deviceLogLoading ? 'Reading…' : deviceLog.length ? 'Reload Full Log' : 'Query Full Device Log'}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              Every punch the device has ever recorded, most recent first — independent of what Synchronize has
+              already pulled into gymos. Use this to audit the raw device history or spot punches from people not
+              yet linked above.
+            </p>
+
+            {deviceLogMsg && (
+              <div className="p-2.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+                {deviceLogMsg}
+              </div>
+            )}
+
+            {deviceLog.length > 0 && (
+              <div className="max-h-96 overflow-y-auto space-y-1 border border-gray-200 rounded-lg p-2">
+                {deviceLog.map((r, idx) => {
+                  const isCheckOut = r.punch === 1; // ZK protocol: 0 = check-in, 1 = check-out
+                  return (
+                    <div
+                      key={`${r.deviceUserId}-${r.timestamp}-${idx}`}
+                      className="p-2 bg-gray-50 rounded-lg border border-gray-200 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isCheckOut ? (
+                          <LogOut className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        ) : (
+                          <LogIn className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        )}
+                        <div className="truncate">
+                          <span className="font-bold text-gray-900">
+                            {r.personName || `Unlinked device ID ${r.deviceUserId}`}
+                          </span>
+                          {r.personType && <span className="text-gray-400"> • {r.personType}</span>}
+                        </div>
+                      </div>
+                      <span className="text-gray-500 font-mono text-[11px] shrink-0">
+                        {new Date(r.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </div>
