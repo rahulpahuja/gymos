@@ -492,6 +492,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setEnrollments(storageService.getBiometricEnrollments());
   };
 
+  // Pre-fills the capture form for an already-enrolled person and scrolls it
+  // into view — /api/enroll already reuses their existing device uid and
+  // re-captures a fresh template when called again, so no backend change
+  // was needed to support this.
+  const handleReEnroll = (personId: string, personType: BiometricPersonType) => {
+    setEnrollType(personType);
+    setEnrollPersonId(personId);
+    setEnrollStatus('idle');
+    setEnrollMsg('Ready to re-capture — click "Capture & Save Fingerprint" below.');
+    document.getElementById('biometric-enroll-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
+  const handleRemoveDeviceUser = async (uid: string) => {
+    if (!window.confirm('Remove this entry from the device entirely? Its fingerprint/face template will be deleted and this cannot be undone.')) {
+      return;
+    }
+    const result = await biometricBridge.removeDeviceUser(uid);
+    if (result.success) {
+      setDeviceUsers((prev) => prev.filter((u) => u.uid !== uid));
+    } else {
+      setDeviceUsersMsg(result.error || 'Could not remove this entry from the device.');
+    }
+  };
+
   // New Branch Modal
   const [isAddBranchOpen, setIsAddBranchOpen] = useState<boolean>(false);
   const [newBranchName, setNewBranchName] = useState<string>('');
@@ -1012,7 +1036,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               Once enrolled either way, every check-in (fingerprint or face) syncs to gymos identically.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 text-xs items-end">
+            <div id="biometric-enroll-form" className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 text-xs items-end">
               <div>
                 <label className="block text-gray-700 font-bold mb-1">Role</label>
                 <select
@@ -1098,6 +1122,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleReEnroll(en.personId, en.personType)}
+                        className="p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        aria-label={`Re-enroll fingerprint for ${en.personName}`}
+                        title="Re-enroll (capture a fresh fingerprint template)"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => handleToggleEnrollmentStatus(en.personId)}
@@ -1231,6 +1264,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                             >
                               {linkBusyUid === du.uid ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
                               Link
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDeviceUser(du.uid)}
+                              className="p-1.5 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              aria-label={`Remove ${du.deviceName || `uid ${du.uid}`} from the device`}
+                              title="Remove from device entirely (deletes their fingerprint/face template)"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         )}

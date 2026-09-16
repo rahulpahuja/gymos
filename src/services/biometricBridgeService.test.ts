@@ -194,6 +194,31 @@ describe('FingerprintDeviceAdapter', () => {
     });
   });
 
+  describe('removeDeviceUser', () => {
+    it('DELETEs the device-users endpoint by uid, distinct from removeEnrollment', async () => {
+      fetchMock.mockResolvedValue(okResponse({ success: true }));
+      const result = await adapter.removeDeviceUser('137');
+      expect(result.success).toBe(true);
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toContain('/api/device-users/137');
+      expect(init?.method).toBe('DELETE');
+    });
+
+    it('URL-encodes a uid containing path-breaking characters', async () => {
+      fetchMock.mockResolvedValue(okResponse({ success: true }));
+      await adapter.removeDeviceUser('../etc/passwd');
+      const [url] = fetchMock.mock.calls[0];
+      expect(url).not.toContain('../etc/passwd');
+      expect(url).toContain(encodeURIComponent('../etc/passwd'));
+    });
+
+    it('returns a failure shape instead of throwing on a network error', async () => {
+      fetchMock.mockRejectedValue(new Error('offline'));
+      const result = await adapter.removeDeviceUser('137');
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('request timeout', () => {
     it('aborts and reports a clear timeout error when the bridge never responds', async () => {
       vi.useFakeTimers();

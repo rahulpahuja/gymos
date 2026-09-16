@@ -79,8 +79,15 @@ Environment variables (all optional, shown with defaults):
   Once enrolled either way, attendance punches are captured identically — the
   device logs a punch as just person + time + direction, with no fingerprint-
   vs-face tag, so `/api/sync` and `/api/attendance-log` already cover both.
-- `DELETE /api/enroll/<personId>` — removes the person from the device entirely
-  (deletes their fingerprint template too).
+- `DELETE /api/enroll/<personId>` — removes a gymos-linked person from the
+  device entirely (deletes their fingerprint/face template too), keyed by
+  their gymos personId.
+- `DELETE /api/device-users/<uid>` — same removal, but keyed by the device's
+  own uid instead. Works for someone **never linked to gymos at all** (e.g.
+  a stale entry from the old EasyBio roster you just want gone). Also
+  re-enrolling: calling `/api/enroll` again for an already-enrolled person
+  reuses their existing uid and re-captures a fresh template — no separate
+  endpoint needed for that.
 - `GET  /api/users` — lists every user already on the device, including ones
   enrolled long before this bridge existed (e.g. via EasyBio's history), each
   showing whether it's already linked to a gymos person.

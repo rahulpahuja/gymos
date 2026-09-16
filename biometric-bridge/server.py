@@ -67,6 +67,13 @@ _live_thread = None
 _sse_clients: list = []
 _file_lock = threading.Lock()
 
+# Cache of {deviceUserId: deviceName} straight from the terminal's own user
+# directory — refreshed whenever we happen to fetch the user list anyway
+# (status/refresh checks, "Load Users from Device"). Lets live punches and
+# sync/log entries show a real name even for someone never linked to a
+# gymos record, instead of a bare "Unknown device ID" placeholder.
+_device_directory: dict = {}
+
 
 def load_json(path, default):
     with _file_lock:
@@ -157,6 +164,11 @@ def show_windows_toast(title, message):
         print(f"[bridge] Toast notification failed (non-fatal): {e}")
 
 
+def _refresh_device_directory(users):
+    global _device_directory
+    _device_directory = {str(u.user_id): u.name for u in users if u.name}
+
+
 def _mark_seen(iso_timestamp):
     state = load_state()
     if not state.get("lastTimestamp") or iso_timestamp > state["lastTimestamp"]:
@@ -195,7 +207,11 @@ def _live_capture_loop():
                 by_device_id = {v.get("deviceUserId"): v for v in mapping.values()}
                 person = by_device_id.get(str(att.user_id), {})
                 iso_ts = att.timestamp.isoformat()
-                person_name = person.get("personName") or f"Unknown device ID {att.user_id}"
+                person_name = (
+                    person.get("personName")
+                    or _device_directory.get(str(att.user_id))
+                    or f"Unknown device ID {att.user_id}"
+                )
                 validity = person.get("validity")
                 event = {
                     "deviceUserId": str(att.user_id),
@@ -237,6 +253,7 @@ def start_live_capture_thread():
 def status():
     def fn(conn):
         users = conn.get_users()
+        _refresh_device_directory(users)
         # get_users() calls read_sizes() internally, populating these —
         # exactly what the terminal's own "Device Capacity" screen shows.
         # Attendance punches themselves aren't tagged fingerprint vs. face
@@ -335,6 +352,33 @@ def delete_enrollment(person_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/device-users/<uid>", methods=["DELETE"])
+def delete_device_user(uid):
+    """Removes a user directly from the device by its device uid — unlike
+    /api/enroll/<person_id>, this works for someone never linked to a gymos
+    record at all (e.g. cleaning up stale entries from the old EasyBio
+    roster). Also drops any gymos mapping entry that happens to reference
+    the same uid, so a linked person can't be left pointing at a uid that no
+    longer exists on the device."""
+    def fn(conn):
+        conn.delete_user(uid=int(uid))
+        return True
+
+    try:
+        with_device(fn)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 502
+
+    mapping = load_mapping()
+    stale_person_ids = [pid for pid, entry in mapping.items() if str(entry.get("uid")) == str(uid)]
+    for pid in stale_person_ids:
+        del mapping[pid]
+    if stale_person_ids:
+        save_mapping(mapping)
+
+    return jsonify({"success": True})
+
+
 @app.route("/api/users")
 def list_users():
     """Lists every user already registered on the device (including ones enrolled
@@ -347,6 +391,8 @@ def list_users():
         users = with_device(fn, timeout=20)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 502
+
+    _refresh_device_directory(users)
 
     mapping = load_mapping()
     by_uid = {str(v["uid"]): v for v in mapping.values()}
@@ -433,7 +479,9 @@ def _enrich_with_mapping(records):
         {
             **r,
             "personId": by_device_id.get(r["deviceUserId"], {}).get("personId"),
-            "personName": by_device_id.get(r["deviceUserId"], {}).get("personName"),
+            # Not yet linked to a gymos record — still show the name already
+            # registered on the device itself rather than nothing at all.
+            "personName": by_device_id.get(r["deviceUserId"], {}).get("personName") or _device_directory.get(r["deviceUserId"]),
             "personType": by_device_id.get(r["deviceUserId"], {}).get("personType"),
         }
         for r in records

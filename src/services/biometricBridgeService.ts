@@ -438,6 +438,21 @@ export class FingerprintDeviceAdapter {
     }
   }
 
+  /** Removes a user directly from the device by its device uid — works even
+   * for someone never linked to a gymos record (e.g. a stale entry from the
+   * old EasyBio roster). Use removeEnrollment() instead for a person already
+   * linked/enrolled through gymos. */
+  async removeDeviceUser(uid: string): Promise<BiometricActionResult> {
+    try {
+      const data = await this.request<{ success: boolean; error?: string }>(`/api/device-users/${encodeURIComponent(uid)}`, {
+        method: 'DELETE',
+      });
+      return data;
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Removal failed.' };
+    }
+  }
+
   /** Lists every user already registered on the device, including ones enrolled
    * before gymos existed (e.g. via EasyBio), with their gymos link status if any. */
   async listDeviceUsers(): Promise<{ success: boolean; users: BiometricDeviceUser[]; error?: string }> {
