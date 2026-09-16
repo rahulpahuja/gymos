@@ -86,6 +86,36 @@ describe('FingerprintDeviceAdapter', () => {
       expect(adapter.getDeviceStatus().userCount).toBe(42);
     });
 
+    it('captures fingerprint/face enrollment capacity from the device (matches its own "Device Capacity" screen)', async () => {
+      fetchMock.mockResolvedValue(
+        okResponse({
+          success: true,
+          firmware: '8.0.4.7',
+          serialNumber: 'JNP2240400105',
+          userCount: 540,
+          fingerprintsEnrolled: 549,
+          fingerprintsCapacity: 2000,
+          facesEnrolled: 18,
+          facesCapacity: 1500,
+        })
+      );
+      const ok = await adapter.connect();
+      expect(ok).toBe(true);
+      const status = adapter.getDeviceStatus();
+      expect(status.fingerprintsEnrolled).toBe(549);
+      expect(status.fingerprintsCapacity).toBe(2000);
+      expect(status.facesEnrolled).toBe(18);
+      expect(status.facesCapacity).toBe(1500);
+    });
+
+    it('leaves capacity fields undefined when the bridge does not report them, instead of defaulting to zero', async () => {
+      fetchMock.mockResolvedValue(okResponse({ success: true, firmware: '1', serialNumber: 'SN', userCount: 1 }));
+      await adapter.connect();
+      const status = adapter.getDeviceStatus();
+      expect(status.fingerprintsEnrolled).toBeUndefined();
+      expect(status.facesEnrolled).toBeUndefined();
+    });
+
     it('reports failure and captures the bridge-provided error when the bridge itself says success:false', async () => {
       fetchMock.mockResolvedValue(okResponse({ success: false, error: 'Device offline' }));
       const ok = await adapter.connect();
@@ -243,11 +273,15 @@ describe('FingerprintDeviceAdapter', () => {
         firmware: '2.0',
         serialNumber: 'SN9',
         userCount: 12,
+        fingerprintsEnrolled: 549,
+        facesEnrolled: 18,
         checkedAt: new Date().toISOString(),
       });
       const fresh = new FingerprintDeviceAdapter();
       expect(fresh.isConnected()).toBe(true);
       expect(fresh.getDeviceStatus().firmware).toBe('2.0');
+      expect(fresh.getDeviceStatus().fingerprintsEnrolled).toBe(549);
+      expect(fresh.getDeviceStatus().facesEnrolled).toBe(18);
     });
 
     it('ignores a persisted snapshot for a different bridge URL (stale config must never be shown as current)', () => {

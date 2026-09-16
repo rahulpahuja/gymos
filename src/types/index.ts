@@ -512,6 +512,10 @@ export interface BiometricLastStatus {
   firmware?: string;
   serialNumber?: string;
   userCount?: number;
+  fingerprintsEnrolled?: number;
+  fingerprintsCapacity?: number;
+  facesEnrolled?: number;
+  facesCapacity?: number;
   checkedAt: string;
 }
 

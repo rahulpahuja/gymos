@@ -236,11 +236,22 @@ def start_live_capture_thread():
 @app.route("/api/status")
 def status():
     def fn(conn):
+        users = conn.get_users()
+        # get_users() calls read_sizes() internally, populating these —
+        # exactly what the terminal's own "Device Capacity" screen shows.
+        # Attendance punches themselves aren't tagged fingerprint vs. face
+        # (the ZK protocol logs a punch as just user + time + direction
+        # either way), so every check-in already gets captured regardless
+        # of which sensor verified it — this is purely enrollment capacity.
         return {
             "firmware": conn.get_firmware_version(),
             "serialNumber": conn.get_serialnumber(),
             "platform": conn.get_platform(),
-            "userCount": len(conn.get_users()),
+            "userCount": len(users),
+            "fingerprintsEnrolled": getattr(conn, "fingers", None),
+            "fingerprintsCapacity": getattr(conn, "fingers_cap", None),
+            "facesEnrolled": getattr(conn, "faces", None),
+            "facesCapacity": getattr(conn, "faces_cap", None),
         }
 
     try:

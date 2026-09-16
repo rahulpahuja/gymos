@@ -34,10 +34,24 @@ import {
 } from 'lucide-react';
 import { Branch, UserAccount, BiometricEnrollment, BiometricPersonType, BiometricDeviceUser, BiometricPunchEvent, Trainee, Trainer } from '../../types';
 import { storageService } from '../../services/storageService';
-import { biometricBridge, buildEnrollment, computeTraineeValidity } from '../../services/biometricBridgeService';
+import { biometricBridge, buildEnrollment, computeTraineeValidity, DeviceStatus } from '../../services/biometricBridgeService';
 import { firebaseAuthService } from '../../services/firebase';
 import { firestoreSync } from '../../services/firestoreSync';
 import { backupService, BackupEnvelope } from '../../services/backupService';
+
+/** Enrollment capacity suffix (e.g. ", 549/2000 fingerprints, 18/1500 faces")
+ * matching the terminal's own "Device Capacity" screen — omits a modality
+ * entirely if the bridge didn't report it (older firmware/device). */
+function formatCapacitySuffix(status: DeviceStatus): string {
+  const parts: string[] = [];
+  if (status.fingerprintsEnrolled !== undefined) {
+    parts.push(`${status.fingerprintsEnrolled}${status.fingerprintsCapacity !== undefined ? `/${status.fingerprintsCapacity}` : ''} fingerprints`);
+  }
+  if (status.facesEnrolled !== undefined) {
+    parts.push(`${status.facesEnrolled}${status.facesCapacity !== undefined ? `/${status.facesCapacity}` : ''} faces`);
+  }
+  return parts.length ? `, ${parts.join(', ')}` : '';
+}
 
 interface SettingsViewProps {
   branches: Branch[];
@@ -197,7 +211,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         setConnMsg(
           `Connected to ${status.model} — firmware ${status.firmware}, serial ${status.serialNumber}${
             status.userCount !== undefined ? `, ${status.userCount} users on device` : ''
-          }.`
+          }${formatCapacitySuffix(status)}.`
         );
       } else {
         setConnStatus('error');
@@ -348,7 +362,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       setConnStatus('connected');
       setConnMsg(`Connected to ${status.model} — firmware ${status.firmware}, serial ${status.serialNumber}${
         status.userCount !== undefined ? `, ${status.userCount} users on device` : ''
-      }.`);
+      }${formatCapacitySuffix(status)}.`);
     } else {
       setConnStatus('error');
       setConnMsg(biometricBridge.getLastError() || `Could not reach the bridge at ${status.port}.`);
@@ -433,7 +447,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     const status = biometricBridge.getDeviceStatus();
     setActionMsg({
       text: result.success
-        ? `Refreshed — ${status.model}, firmware ${status.firmware}, ${status.userCount ?? '?'} users on device.`
+        ? `Refreshed — ${status.model}, firmware ${status.firmware}, ${status.userCount ?? '?'} users on device${formatCapacitySuffix(status)}.`
         : result.error || 'Refresh failed.',
       ok: result.success,
     });
@@ -992,6 +1006,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
               Enrolled Fingerprints ({enrollments.length})
             </h4>
+            <p className="text-[11px] text-gray-400">
+              Capturing here registers a fingerprint remotely through the bridge. The terminal's face recognition
+              can't be triggered from software — a new face must be enrolled directly on the device's own touchscreen.
+              Once enrolled either way, every check-in (fingerprint or face) syncs to gymos identically.
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_auto] gap-2 text-xs items-end">
               <div>

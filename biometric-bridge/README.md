@@ -65,13 +65,20 @@ Environment variables (all optional, shown with defaults):
 
 ## What it does
 
-- `GET  /api/status` — connects, reads firmware/serial/user count.
+- `GET  /api/status` — connects, reads firmware/serial/user count, plus
+  fingerprint and face enrollment counts (used/capacity) from the terminal's
+  own "Device Capacity" screen.
 - `POST /api/refresh` — same as status; re-reads device info.
 - `POST /api/enroll` — `{personId, personName, personType}`. Creates the user on
-  the device and starts on-device fingerprint capture. **This call blocks**
+  the device and starts on-device **fingerprint** capture. **This call blocks**
   while the person places the same finger on the sensor (up to 3 times) as the
   terminal prompts — that's the device's own enrollment flow, not something the
-  bridge can skip.
+  bridge can skip. There is no equivalent for face enrollment: the ZK protocol
+  library this bridge uses (`pyzk`) doesn't expose a network command for it, so
+  a new face must be registered directly on the terminal's own touchscreen.
+  Once enrolled either way, attendance punches are captured identically — the
+  device logs a punch as just person + time + direction, with no fingerprint-
+  vs-face tag, so `/api/sync` and `/api/attendance-log` already cover both.
 - `DELETE /api/enroll/<personId>` — removes the person from the device entirely
   (deletes their fingerprint template too).
 - `GET  /api/users` — lists every user already on the device, including ones
@@ -84,6 +91,10 @@ Environment variables (all optional, shown with defaults):
 - `POST /api/sync` — pulls attendance logs from the device and returns any
   punches not already delivered (tracked in `state.json`), enriched with the
   person's name/type from `enrollments.json`.
+- `GET  /api/attendance-log` — read-only dump of **every** punch the device is
+  holding, most recent first, same enrichment as `/api/sync`. Unlike sync,
+  this never advances the "last seen" cursor, so it's safe to call anytime
+  just to inspect or audit the device's full history.
 - `POST /api/force-open` — `{seconds}`. Pulses the door relay. **Only works if
   this specific terminal model has a wired relay/aux output and firmware that
   supports the unlock command.** If it doesn't, you'll get a clear error, not a

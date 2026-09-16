@@ -68,6 +68,15 @@ export interface DeviceStatus {
   serialNumber: string;
   port: string;
   userCount?: number;
+  /** Enrolled/capacity counts from the terminal's own "Device Capacity"
+   * screen. Attendance punches aren't tagged by verification method (the ZK
+   * protocol logs a punch as just user + time + direction either way), so
+   * every check-in is already captured regardless of finger vs. face — these
+   * counts are purely about enrollment capacity, not attendance coverage. */
+  fingerprintsEnrolled?: number;
+  fingerprintsCapacity?: number;
+  facesEnrolled?: number;
+  facesCapacity?: number;
   status: 'connected' | 'disconnected' | 'connecting' | 'error';
 }
 
@@ -78,6 +87,10 @@ export class FingerprintDeviceAdapter {
   private firmware = '';
   private serialNumber = '';
   private userCount: number | undefined;
+  private fingerprintsEnrolled: number | undefined;
+  private fingerprintsCapacity: number | undefined;
+  private facesEnrolled: number | undefined;
+  private facesCapacity: number | undefined;
   private liveSource: EventSource | null = null;
   private lastError = '';
 
@@ -107,6 +120,10 @@ export class FingerprintDeviceAdapter {
       this.firmware = last.firmware || '';
       this.serialNumber = last.serialNumber || '';
       this.userCount = last.userCount;
+      this.fingerprintsEnrolled = last.fingerprintsEnrolled;
+      this.fingerprintsCapacity = last.fingerprintsCapacity;
+      this.facesEnrolled = last.facesEnrolled;
+      this.facesCapacity = last.facesCapacity;
     } catch {
       // Corrupted/unavailable cache — fall back to the normal cold-start state.
     }
@@ -119,6 +136,10 @@ export class FingerprintDeviceAdapter {
       firmware: this.firmware || undefined,
       serialNumber: this.serialNumber || undefined,
       userCount: this.userCount,
+      fingerprintsEnrolled: this.fingerprintsEnrolled,
+      fingerprintsCapacity: this.fingerprintsCapacity,
+      facesEnrolled: this.facesEnrolled,
+      facesCapacity: this.facesCapacity,
       checkedAt: new Date().toISOString(),
     });
   }
@@ -227,6 +248,10 @@ export class FingerprintDeviceAdapter {
       serialNumber: this.serialNumber || 'unknown',
       port: this.config.bridgeUrl,
       userCount: this.userCount,
+      fingerprintsEnrolled: this.fingerprintsEnrolled,
+      fingerprintsCapacity: this.fingerprintsCapacity,
+      facesEnrolled: this.facesEnrolled,
+      facesCapacity: this.facesCapacity,
       status: this.currentStatus,
     };
   }
@@ -244,6 +269,10 @@ export class FingerprintDeviceAdapter {
         firmware?: string;
         serialNumber?: string;
         userCount?: number;
+        fingerprintsEnrolled?: number;
+        fingerprintsCapacity?: number;
+        facesEnrolled?: number;
+        facesCapacity?: number;
         error?: string;
       }>('/api/status');
       if (!data.success) {
@@ -258,6 +287,10 @@ export class FingerprintDeviceAdapter {
       this.firmware = data.firmware || '';
       this.serialNumber = data.serialNumber || '';
       this.userCount = data.userCount;
+      this.fingerprintsEnrolled = data.fingerprintsEnrolled;
+      this.fingerprintsCapacity = data.fingerprintsCapacity;
+      this.facesEnrolled = data.facesEnrolled;
+      this.facesCapacity = data.facesCapacity;
       this.persistLastKnownStatus();
       return true;
     } catch (e) {
@@ -280,16 +313,27 @@ export class FingerprintDeviceAdapter {
   /** Re-reads device info without dropping the "configured" state. */
   async refreshDevice(): Promise<BiometricActionResult> {
     try {
-      const data = await this.request<{ success: boolean; firmware?: string; serialNumber?: string; userCount?: number; error?: string }>(
-        '/api/refresh',
-        { method: 'POST' }
-      );
+      const data = await this.request<{
+        success: boolean;
+        firmware?: string;
+        serialNumber?: string;
+        userCount?: number;
+        fingerprintsEnrolled?: number;
+        fingerprintsCapacity?: number;
+        facesEnrolled?: number;
+        facesCapacity?: number;
+        error?: string;
+      }>('/api/refresh', { method: 'POST' });
       if (data.success) {
         this.connected = true;
         this.currentStatus = 'connected';
         this.firmware = data.firmware || this.firmware;
         this.serialNumber = data.serialNumber || this.serialNumber;
         this.userCount = data.userCount;
+        this.fingerprintsEnrolled = data.fingerprintsEnrolled;
+        this.fingerprintsCapacity = data.fingerprintsCapacity;
+        this.facesEnrolled = data.facesEnrolled;
+        this.facesCapacity = data.facesCapacity;
         this.persistLastKnownStatus();
       }
       return { success: data.success, error: data.error };
